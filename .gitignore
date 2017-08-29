@@ -1,0 +1,5 @@
+# .gitignore top of project
+*~
+.settings
+Debug
+Release
