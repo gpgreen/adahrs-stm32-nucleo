@@ -119,50 +119,50 @@ DMA::complete_transaction()
 }
 
 // instantiate an object for each channel
-#if defined(DMA1_CHANNEL1_USED)
+#ifdef DMA1_CHANNEL1_USED
 DMA DMA1Channel1(DMA1_Channel1);
 #endif
-#if defined(DMA1_CHANNEL2_USED)
+#ifdef DMA1_CHANNEL2_USED
 DMA DMA1Channel2(DMA1_Channel2);
 #endif
-#if defined(DMA1_CHANNEL3_USED)
+#ifdef DMA1_CHANNEL3_USED
 DMA DMA1Channel3(DMA1_Channel3);
 #endif
-#if defined(DMA1_CHANNEL4_USED)
+#ifdef DMA1_CHANNEL4_USED
 DMA DMA1Channel4(DMA1_Channel4);
 #endif
-#if defined(DMA1_CHANNEL5_USED)
+#ifdef DMA1_CHANNEL5_USED
 DMA DMA1Channel5(DMA1_Channel5);
 #endif
-#if defined(DMA1_CHANNEL6_USED)
-DMA DMA1Channel6(DMA1_Channel6);
+#ifdef DMA1_CHANNEL6_USED
+//DMA DMA1Channel6(DMA1_Channel6);
 #endif
-#if defined(DMA1_CHANNEL7_USED)
-DMA DMA1Channel7(DMA1_Channel7);
+#ifdef DMA1_CHANNEL7_USED
+//DMA DMA1Channel7(DMA1_Channel7);
 #endif
 
 #ifdef STM32F10X_HD_VL
 
-#if defined(DMA2_CHANNEL1_USED)
+#ifdef DMA2_CHANNEL1_USED
 DMA DMA2Channel1(DMA2_Channel1);
 #endif
-#if defined(DMA2_CHANNEL2_USED)
+#ifdef DMA2_CHANNEL2_USED
 DMA DMA2Channel2(DMA2_Channel2);
 #endif
-#if defined(DMA2_CHANNEL3_USED)
+#ifdef DMA2_CHANNEL3_USED
 DMA DMA2Channel3(DMA2_Channel3);
 #endif
-#if defined(DMA2_CHANNEL4_USED)
+#ifdef DMA2_CHANNEL4_USED
 DMA DMA2Channel4(DMA2_Channel4);
 #endif
-#if defined(DMA2_CHANNEL5_USED)
+#ifdef DMA2_CHANNEL5_USED
 DMA DMA2Channel5(DMA2_Channel5);
 #endif
 
 #endif
 
 // ----- DMA1_Channel1_IRQHandler() ----------------------------------------------------
-#if defined(DMA1_CHANNEL1_USED)
+#ifdef DMA1_CHANNEL1_USED
 void DMA1_Channel1_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -175,7 +175,7 @@ void DMA1_Channel1_IRQHandler( void )
 #endif
 
 // ----- DMA1_Channel2_IRQHandler() ----------------------------------------------------
-#if defined(DMA1_CHANNEL2_USED)
+#ifdef DMA1_CHANNEL2_USED
 void DMA1_Channel2_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -188,7 +188,7 @@ void DMA1_Channel2_IRQHandler( void )
 #endif
 
 // ----- DMA1_Channel3_IRQHandler() ----------------------------------------------------
-#if defined(DMA1_CHANNEL3_USED)
+#ifdef DMA1_CHANNEL3_USED
 void DMA1_Channel3_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -201,7 +201,7 @@ void DMA1_Channel3_IRQHandler( void )
 #endif
 
 // ----- DMA1_Channel4_IRQHandler() ----------------------------------------------------
-#if defined(DMA1_CHANNEL4_USED)
+#ifdef DMA1_CHANNEL4_USED
 void DMA1_Channel4_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -214,7 +214,7 @@ void DMA1_Channel4_IRQHandler( void )
 #endif
 
 // ----- DMA1_Channel5_IRQHandler() ----------------------------------------------------
-#if defined(DMA1_CHANNEL5_USED)
+#ifdef DMA1_CHANNEL5_USED
 void DMA1_Channel5_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -227,26 +227,26 @@ void DMA1_Channel5_IRQHandler( void )
 #endif
 
 // ----- DMA1_Channel6_IRQHandler() ----------------------------------------------------
-#if defined(DMA1_CHANNEL6_USED)
+#ifdef DMA1_CHANNEL6_USED
 void DMA1_Channel6_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
     if( DMA_GetITStatus( DMA1_IT_TC6 ) != RESET )
     {
-        DMA1Channel6.complete_transaction();
+//        DMA1Channel6.complete_transaction();
         DMA_ClearFlag( DMA1_IT_TC6 );
     }
 }
 #endif
 
 // ----- DMA1_Channel7_IRQHandler() ----------------------------------------------------
-#if defined(DMA1_CHANNEL7_USED)
+#ifdef DMA1_CHANNEL7_USED
 void DMA1_Channel7_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
     if( DMA_GetITStatus( DMA1_IT_TC7 ) != RESET )
     {
-        DMA1Channel7.complete_transaction();
+//        DMA1Channel7.complete_transaction();
         DMA_ClearFlag( DMA1_IT_TC7 );
     }
 }
@@ -255,7 +255,7 @@ void DMA1_Channel7_IRQHandler( void )
 #ifdef STM32F10X_HD_VL
 
 // ----- DMA2_Channel1_IRQHandler() ----------------------------------------------------
-#if defined(DMA2_CHANNEL1_USED)
+#ifdef DMA2_CHANNEL1_USED
 void DMA2_Channel1_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -268,7 +268,7 @@ void DMA2_Channel1_IRQHandler( void )
 #endif
 
 // ----- DMA2_Channel2_IRQHandler() ----------------------------------------------------
-#if defined(DMA2_CHANNEL2_USED)
+#ifdef DMA2_CHANNEL2_USED
 void DMA2_Channel2_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -281,7 +281,7 @@ void DMA2_Channel2_IRQHandler( void )
 #endif
 
 // ----- DMA2_Channel3_IRQHandler() ----------------------------------------------------
-#if defined(DMA2_CHANNEL3_USED)
+#ifdef DMA2_CHANNEL3_USED
 void DMA2_Channel3_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -294,7 +294,7 @@ void DMA2_Channel3_IRQHandler( void )
 #endif
 
 // ----- DMA2_Channel4_5_IRQHandler() ----------------------------------------------------
-#if defined(DMA2_CHANNEL4_USED) || defined(DMA2_CHANNEL5_USED)
+#ifdef DMA2_CHANNEL4_USED || defined(DMA2_CHANNEL5_USED)
 void DMA2_Channel4_5_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.

@@ -37,8 +37,8 @@ private:
 
 private:
     int _devno;
-    DMA& _tx_dma;
-    DMA& _rx_dma;
+    DMA* _tx_dma;
+    DMA* _rx_dma;
     // transmit buffer members
     volatile uint8_t _tx_buffer[TX_BUFFER_SIZE];
     volatile uint8_t* _tx_buf_p;

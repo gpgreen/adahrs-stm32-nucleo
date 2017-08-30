@@ -37,43 +37,43 @@ private:
 };
 
 // instantiate objects for each channel
-#if defined(DMA1_CHANNEL1_USED)
+#ifdef DMA1_CHANNEL1_USED
 extern DMA DMA1Channel1;
 #endif
-#if defined(DMA1_CHANNEL2_USED)
+#ifdef DMA1_CHANNEL2_USED
 extern DMA DMA1Channel2;
 #endif
-#if defined(DMA1_CHANNEL3_USED)
+#ifdef DMA1_CHANNEL3_USED
 extern DMA DMA1Channel3;
 #endif
-#if defined(DMA1_CHANNEL4_USED)
+#ifdef DMA1_CHANNEL4_USED
 extern DMA DMA1Channel4;
 #endif
-#if defined(DMA1_CHANNEL5_USED)
+#ifdef DMA1_CHANNEL5_USED
 extern DMA DMA1Channel5;
 #endif
-#if defined(DMA1_CHANNEL6_USED)
+#ifdef DMA1_CHANNEL6_USED
 extern DMA DMA1Channel6;
 #endif
-#if defined(DMA1_CHANNEL7_USED)
+#ifdef DMA1_CHANNEL7_USED
 extern DMA DMA1Channel7;
 #endif
 
 #ifdef STM32F10X_HD_VL
 
-#if defined(DMA2_CHANNEL1_USED)
+#ifdef DMA2_CHANNEL1_USED
 extern DMA DMA2Channel1;
 #endif
-#if defined(DMA2_CHANNEL2_USED)
+#ifdef DMA2_CHANNEL2_USED
 extern DMA DMA2Channel2;
 #endif
-#if defined(DMA2_CHANNEL3_USED)
+#ifdef DMA2_CHANNEL3_USED
 extern DMA DMA2Channel3;
 #endif
-#if defined(DMA2_CHANNEL4_USED)
+#ifdef DMA2_CHANNEL4_USED
 extern DMA DMA2Channel4;
 #endif
-#if defined(DMA2_CHANNEL5_USED)
+#ifdef DMA2_CHANNEL5_USED
 extern DMA DMA2Channel5;
 #endif
 
@@ -82,40 +82,40 @@ extern DMA DMA2Channel5;
 // define the interrupt handlers
 extern "C"
 {
-#if defined(DMA1_CHANNEL1_USED)
+#ifdef DMA1_CHANNEL1_USED
     void DMA1_Channel1_IRQHandler(void);
 #endif
-#if defined(DMA1_CHANNEL2_USED)
+#ifdef DMA1_CHANNEL2_USED
     void DMA1_Channel2_IRQHandler(void);
 #endif
-#if defined(DMA1_CHANNEL3_USED)
+#ifdef DMA1_CHANNEL3_USED
     void DMA1_Channel3_IRQHandler(void);
 #endif
-#if defined(DMA1_CHANNEL4_USED)
+#ifdef DMA1_CHANNEL4_USED
     void DMA1_Channel4_IRQHandler(void);
 #endif
-#if defined(DMA1_CHANNEL5_USED)
+#ifdef DMA1_CHANNEL5_USED
     void DMA1_Channel5_IRQHandler(void);
 #endif
-#if defined(DMA1_CHANNEL6_USED)
+#ifdef DMA1_CHANNEL6_USED
     void DMA1_Channel6_IRQHandler(void);
 #endif
-#if defined(DMA1_CHANNEL7_USED)
+#ifdef DMA1_CHANNEL7_USED
     void DMA1_Channel7_IRQHandler(void);
 #endif
     
 #ifdef STM32F10X_HD_VL
 
-#if defined(DMA2_CHANNEL1_USED)
+#ifdef DMA2_CHANNEL1_USED
     void DMA2_Channel1_IRQHandler(void);
 #endif
-#if defined(DMA2_CHANNEL2_USED)
+#ifdef DMA2_CHANNEL2_USED
     void DMA2_Channel2_IRQHandler(void);
 #endif
-#if defined(DMA2_CHANNEL3_USED)
+#ifdef DMA2_CHANNEL3_USED
     void DMA2_Channel3_IRQHandler(void);
 #endif
-#if defined(DMA2_CHANNEL4_USED) || defined(DMA2_CHANNEL5_USED)
+#ifdef DMA2_CHANNEL4_USED || defined(DMA2_CHANNEL5_USED)
     void DMA2_Channel4_5_IRQHandler(void);
 #endif
 

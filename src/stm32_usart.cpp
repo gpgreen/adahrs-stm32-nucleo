@@ -11,39 +11,33 @@
 // ----------------------------------------------------------------------------
 
 USART::USART(int device_no)
-    : _devno(device_no), _tx_dma(DMA1Channel1), _rx_dma(DMA1Channel1),
+    : _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr),
       _tx_buf_p(nullptr), _tx_buffer_start(0), _tx_busy(false),
       _rx_buffer_start(0), _rx_busy(false)
 {
-#if defined(DMA1_CHANNEL4_USED)
+#ifdef DMA1_CHANNEL4_USED
     if (device_no == 1)
-        _tx_dma = DMA1Channel4;
+        _tx_dma = &DMA1Channel4;
 #endif
-#if defined(DMA1_CHANNEL5_USED)
+#ifdef DMA1_CHANNEL5_USED
     if (device_no == 1)
-        _rx_dma = DMA1Channel5;
+        _rx_dma = &DMA1Channel5;
 #endif
-#if defined(DMA1_CHANNEL7_USED)
-    if (device_no == 2)
-        _tx_dma = DMA1Channel7;
+#ifdef DMA1_CHANNEL7_USED
+//    if (device_no == 2)
+//        _tx_dma = &DMA1Channel7;
 #endif
-#if defined(DMA1_CHANNEL6_USED)
-    if (device_no == 2)
-        _rx_dma = DMA1Channel6;
+#ifdef DMA1_CHANNEL6_USED
+//    if (device_no == 2)
+//        _rx_dma = &DMA1Channel6;
 #endif
-#if defined(DMA1_CHANNEL2_USED)
+#ifdef DMA1_CHANNEL2_USED
     if (device_no == 3)
-        _tx_dma = DMA1Channel2;
+        _tx_dma = &DMA1Channel2;
 #endif
-#if defined(DMA1_CHANNEL3_USED)
+#ifdef DMA1_CHANNEL3_USED
     if (device_no == 3)
-        _rx_dma = DMA1Channel3;
-#endif
-#if !defined(DMA1_CHANNEL4_USED) && !defined(DMA1_CHANNEL7_USED) && !defined(DMA1_CHANNEL2_USED)
-#error "Must define one of the DMA Channels used by the USART Tx"
-#endif
-#if !defined(DMA1_CHANNEL5_USED) && !defined(DMA1_CHANNEL6_USED) && !defined(DMA1_CHANNEL3_USED)
-#error "Must define one of the DMA Channels used by the USART Rx"
+        _rx_dma = &DMA1Channel3;
 #endif
 }
 
@@ -176,8 +170,8 @@ USART::tx_start (void)
     DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 
     // this line is a problem if called within IRQ (tx_dma_complete)
-    while (_tx_dma.is_busy() 
-           || !_tx_dma.start(&DMA_InitStructure, 
+    while (_tx_dma->is_busy() 
+           || !_tx_dma->start(&DMA_InitStructure, 
                              std::bind(&USART::tx_dma_complete, this)));
 }
 

@@ -72,7 +72,7 @@ int main(int, char**);
 //#pragma GCC diagnostic ignored "-Wmissing-declarations"
 //#pragma GCC diagnostic ignored "-Wreturn-type"
 
-USART usart2(2);
+//USART usart2(2);
 
 int
 main(int /*argc*/, char* /*argv*/[])
@@ -91,6 +91,7 @@ main(int /*argc*/, char* /*argv*/[])
     // Infinite loop
     while (1)
     {
+    	led_on();
         timer.sleep(seconds == 0 ? TIMER_FREQUENCY_HZ : BLINK_ON_TICKS);
 
         led_off();
