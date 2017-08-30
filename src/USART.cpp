@@ -38,6 +38,44 @@ USART::USART(int device_no)
 
 // ----------------------------------------------------------------------------
 
+void
+USART::begin(int baud_rate)
+{
+    // enable the UART clock
+    RCC_APB2PeripClockCmd(RCC_APB2Periph_USART1, ENABLE);
+    
+    // configure the pins
+
+    USART_InitTypeDef USART_InitStructure;
+    
+    /* USART1 is configured as followS:
+	   - BaudRate = 'baud'  
+	   - Word Length = 8 Bits
+	   - One Stop Bit
+	   - No parity
+	   - Hardware flow control disabled (RTS and CTS signals)
+	   - Receive and transmit enabled
+    */
+    USART_InitStructure.USART_BaudRate = baud_rate;
+    USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+    USART_InitStructure.USART_StopBits = USART_StopBits_1;
+    USART_InitStructure.USART_Parity = USART_Parity_No;
+    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+
+    // configure USART
+    USART_DeInit(USART1);
+    USART_Init(USART1, &USART_InitStructure);
+    
+    // Enable USART TX DMA Requests
+    USART_DMACmd(USART1, USART_DMAReq_Tx, ENABLE);
+    // Enable USART RX DMA Requests
+//    USART_DMACmd(USART1, USART_DMAReq_Rx, ENABLE);
+    
+    // enable USART
+    USART_Cmd(USART1, ENABLE);
+}
+
 bool
 USART::transmit (const char* txdata, int len)
 {

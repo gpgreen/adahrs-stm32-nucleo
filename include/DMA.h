@@ -8,8 +8,10 @@
 #ifndef DMA_H_
 #define DMA_H_
 
-#include "cmsis_device.h"
 #include <functional>
+
+#include "cmsis_device.h"
+#include "adahrs_definitions.h"
 
 // ----------------------------------------------------------------------------
 
@@ -18,6 +20,9 @@ class DMA
 public:
     explicit DMA(DMA_Channel_TypeDef* channel);
 
+    // initalize the hardware
+    void begin(void);
+    // is the DMA busy?
     uint32_t is_busy() {return _busy;}
     // start a transaction with given parameters and callback
     // returns false if DMA is busy

@@ -19,6 +19,23 @@ DMA::DMA(DMA_Channel_TypeDef* channel)
 
 // ----------------------------------------------------------------------------
 
+void
+DMA::begin()
+{
+    // enable the DMA clock
+    RCC_APB2PeripClockCmd(RCC_APBPeriph_DMA1, ENABLE);
+
+    // enable the IRQ
+    NVIC_InitTypeDef NVIC_InitStructure;
+    
+    // enable the DMA Interrupt
+    NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+}
+
 bool
 DMA::start(DMA_InitTypeDef* init, std::function<void(void)> cb)
 {
