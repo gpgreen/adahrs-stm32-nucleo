@@ -1,38 +1,49 @@
 /*
- * USART.cpp
+ * stm32_usart.cpp
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
  */
 
 #include <functional>
-#include "USART.h"
+#include "stm32_usart.h"
 
 // ----------------------------------------------------------------------------
 
 USART::USART(int device_no)
-    : _devno(device_no), _tx_buf_p(nullptr), _tx_buffer_start(0), _tx_busy(false),
-      _rx_buffer_start(0)
+    : _devno(device_no), _tx_dma(DMA1Channel1), _rx_dma(DMA1Channel1),
+      _tx_buf_p(nullptr), _tx_buffer_start(0), _tx_busy(false),
+      _rx_buffer_start(0), _rx_busy(false)
 {
-    _tx_dma = DMA1Channel1;
 #if defined(DMA1_CHANNEL4_USED)
     if (device_no == 1)
         _tx_dma = DMA1Channel4;
+#endif
+#if defined(DMA1_CHANNEL5_USED)
+    if (device_no == 1)
+        _rx_dma = DMA1Channel5;
 #endif
 #if defined(DMA1_CHANNEL7_USED)
     if (device_no == 2)
         _tx_dma = DMA1Channel7;
 #endif
+#if defined(DMA1_CHANNEL6_USED)
+    if (device_no == 2)
+        _rx_dma = DMA1Channel6;
+#endif
 #if defined(DMA1_CHANNEL2_USED)
     if (device_no == 3)
         _tx_dma = DMA1Channel2;
 #endif
-#if defined(DMA2_CHANNEL5_USED)
-    if (device_no == 4)
-        _tx_dma = DMA2Channel5;
+#if defined(DMA1_CHANNEL3_USED)
+    if (device_no == 3)
+        _rx_dma = DMA1Channel3;
 #endif
-#if !defined(DMA1_CHANNEL4_USED) && !defined(DMA1_CHANNEL7_USED) && !defined(DMA1_CHANNEL2_USED) && !defined(DMA2_CHANNEL5_USED)
-#error "Must define one of the DMA Channels used by the USART"
+#if !defined(DMA1_CHANNEL4_USED) && !defined(DMA1_CHANNEL7_USED) && !defined(DMA1_CHANNEL2_USED)
+#error "Must define one of the DMA Channels used by the USART Tx"
+#endif
+#if !defined(DMA1_CHANNEL5_USED) && !defined(DMA1_CHANNEL6_USED) && !defined(DMA1_CHANNEL3_USED)
+#error "Must define one of the DMA Channels used by the USART Rx"
 #endif
 }
 
@@ -41,13 +52,50 @@ USART::USART(int device_no)
 void
 USART::begin(int baud_rate)
 {
-    // enable the UART clock
-    RCC_APB2PeripClockCmd(RCC_APB2Periph_USART1, ENABLE);
+    // enable the UART clock, get pins and port numbers
+    USART_TypeDef* usart;
+    uint16_t txpin;
+    uint16_t rxpin;
+    GPIO_TypeDef* pinport;
+    
+    if (_devno == 1) {
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_USART1, ENABLE);
+	usart = USART1;
+	txpin = GPIO_Pin_9;
+	rxpin = GPIO_Pin_10;
+	pinport = GPIOA;
+    }
+    if (_devno == 2) {
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	usart = USART2;
+	txpin = GPIO_Pin_2;
+	rxpin = GPIO_Pin_3;
+	pinport = GPIOA;
+    }
+    if (_devno == 3) {
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+	usart = USART3;
+	txpin = GPIO_Pin_10;
+	rxpin = GPIO_Pin_11;
+	pinport = GPIOB;
+    }
     
     // configure the pins
-
-    USART_InitTypeDef USART_InitStructure;
+    GPIO_InitTypeDef GPIO_InitStructure;
     
+    // Configure USART Rx as input, internal pullup
+    GPIO_InitStructure.GPIO_Pin = rxpin;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+    GPIO_Init(pinport, &GPIO_InitStructure);
+
+    // Configure USART Tx as alternate function push-pull
+    GPIO_InitStructure.GPIO_Pin = txpin;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+    GPIO_Init(pinport, &GPIO_InitStructure);
+
     /* USART1 is configured as followS:
 	   - BaudRate = 'baud'  
 	   - Word Length = 8 Bits
@@ -56,6 +104,8 @@ USART::begin(int baud_rate)
 	   - Hardware flow control disabled (RTS and CTS signals)
 	   - Receive and transmit enabled
     */
+    USART_InitTypeDef USART_InitStructure;
+    
     USART_InitStructure.USART_BaudRate = baud_rate;
     USART_InitStructure.USART_WordLength = USART_WordLength_8b;
     USART_InitStructure.USART_StopBits = USART_StopBits_1;
@@ -64,16 +114,16 @@ USART::begin(int baud_rate)
     USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
 
     // configure USART
-    USART_DeInit(USART1);
-    USART_Init(USART1, &USART_InitStructure);
+    USART_DeInit(usart);
+    USART_Init(usart, &USART_InitStructure);
     
     // Enable USART TX DMA Requests
-    USART_DMACmd(USART1, USART_DMAReq_Tx, ENABLE);
+    USART_DMACmd(usart, USART_DMAReq_Tx, ENABLE);
     // Enable USART RX DMA Requests
-//    USART_DMACmd(USART1, USART_DMAReq_Rx, ENABLE);
+//    USART_DMACmd(usart, USART_DMAReq_Rx, ENABLE);
     
     // enable USART
-    USART_Cmd(USART1, ENABLE);
+    USART_Cmd(usart, ENABLE);
 }
 
 bool
@@ -113,9 +163,7 @@ USART::tx_start (void)
         DMA_InitStructure.DMA_PeripheralBaseAddr = USART2->DR;
     else if (_devno == 3)
         DMA_InitStructure.DMA_PeripheralBaseAddr = USART3->DR;
-    else if (_devno == 4)
-        DMA_InitStructure.DMA_PeripheralBaseAddr = USART4->DR;
-    DMA_InitStructure.DMA_MemoryBaseAddr = static_cast<uint32_t>(_tx_buf_p);
+    DMA_InitStructure.DMA_MemoryBaseAddr = reinterpret_cast<uint32_t>(_tx_buf_p);
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
     // set buffer size to difference between end of data, and start of send
     DMA_InitStructure.DMA_BufferSize = (&_tx_buffer[_tx_buffer_start] - _tx_buf_p);

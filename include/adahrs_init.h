@@ -1,5 +1,5 @@
 /*
- * ADAHRSInit.h
+ * adahrs_init.h
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen

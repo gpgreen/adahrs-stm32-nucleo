@@ -5,7 +5,8 @@
  *      Author: ggreen
  */
 
-#include "ADAHRSInit.h"
+#include "adahrs_init.h"
+#include "stm32_dma.h"
 
 // ----------------------------------------------------------------------------
 
@@ -13,6 +14,8 @@ ADAHRSInit::ADAHRSInit()
 {
     // Enable GPIO Peripheral clock
     RCC_APB2PeriphClockCmd(ADAHRS_RCC_MASKx(LED_PORT_NUMBER), ENABLE);
+
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_0);
 
     GPIO_InitTypeDef GPIO_InitStructure;
 
@@ -22,6 +25,9 @@ ADAHRSInit::ADAHRSInit()
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
     GPIO_Init(ADAHRS_GPIOx(LED_PORT_NUMBER), &GPIO_InitStructure);
     
+    DMA1Channel6.begin(2, 0);
+    DMA1Channel7.begin(2, 0);
+
     // Start with led turned off
     led_off();
 }

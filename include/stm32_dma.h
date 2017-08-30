@@ -1,12 +1,12 @@
 /*
- * DMA.cpp
+ * stm32_dma.cpp
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
  */
 
-#ifndef DMA_H_
-#define DMA_H_
+#ifndef STM32_DMA_H_
+#define STM32_DMA_H_
 
 #include <functional>
 
@@ -21,7 +21,7 @@ public:
     explicit DMA(DMA_Channel_TypeDef* channel);
 
     // initalize the hardware
-    void begin(void);
+    void begin(uint8_t priority, uint8_t subpriority);
     // is the DMA busy?
     uint32_t is_busy() {return _busy;}
     // start a transaction with given parameters and callback
@@ -58,6 +58,9 @@ extern DMA DMA1Channel6;
 #if defined(DMA1_CHANNEL7_USED)
 extern DMA DMA1Channel7;
 #endif
+
+#ifdef STM32F10X_HD_VL
+
 #if defined(DMA2_CHANNEL1_USED)
 extern DMA DMA2Channel1;
 #endif
@@ -72,6 +75,8 @@ extern DMA DMA2Channel4;
 #endif
 #if defined(DMA2_CHANNEL5_USED)
 extern DMA DMA2Channel5;
+#endif
+
 #endif
 
 // define the interrupt handlers
@@ -98,6 +103,9 @@ extern "C"
 #if defined(DMA1_CHANNEL7_USED)
     void DMA1_Channel7_IRQHandler(void);
 #endif
+    
+#ifdef STM32F10X_HD_VL
+
 #if defined(DMA2_CHANNEL1_USED)
     void DMA2_Channel1_IRQHandler(void);
 #endif
@@ -107,14 +115,13 @@ extern "C"
 #if defined(DMA2_CHANNEL3_USED)
     void DMA2_Channel3_IRQHandler(void);
 #endif
-#if defined(DMA2_CHANNEL4_USED)
-    void DMA2_Channel4_IRQHandler(void);
+#if defined(DMA2_CHANNEL4_USED) || defined(DMA2_CHANNEL5_USED)
+    void DMA2_Channel4_5_IRQHandler(void);
 #endif
-#if defined(DMA2_CHANNEL5_USED)
-    void DMA2_Channel5_IRQHandler(void);
+
 #endif
 }
 
 // ----------------------------------------------------------------------------
 
-#endif // TIMER_H_
+#endif // STM32_DMA_H_

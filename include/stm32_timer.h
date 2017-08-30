@@ -1,12 +1,12 @@
 /*
- * Timer.h
+ * stm32_timer.h
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
  */
 
-#ifndef TIMER_H_
-#define TIMER_H_
+#ifndef STM32_TIMER_H_
+#define STM32_TIMER_H_
 
 #include "cmsis_device.h"
 
@@ -28,4 +28,4 @@ private:
 
 // ----------------------------------------------------------------------------
 
-#endif // TIMER_H_
+#endif // STM32_TIMER_H_

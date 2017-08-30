@@ -1,18 +1,18 @@
 /*
- * DMA.cpp
+ * stm32_dma.cpp
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
  */
 
-#include "DMA.h"
+#include "stm32_dma.h"
 #include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------
 
 
 DMA::DMA(DMA_Channel_TypeDef* channel)
-    : _channel(channel), _busy(0)
+    : _busy(0), _dma_channel_p(channel)
 {
     // does nothing else
 }
@@ -20,18 +20,71 @@ DMA::DMA(DMA_Channel_TypeDef* channel)
 // ----------------------------------------------------------------------------
 
 void
-DMA::begin()
+DMA::begin(uint8_t priority, uint8_t subpriority)
 {
+    uint8_t irq = 0;
     // enable the DMA clock
-    RCC_APB2PeripClockCmd(RCC_APBPeriph_DMA1, ENABLE);
+    if (_dma_channel_p == DMA1_Channel1) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+	irq = DMA1_Channel1_IRQn;
+    }
+    else if (_dma_channel_p == DMA1_Channel2) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+	irq = DMA1_Channel2_IRQn;
+    }
+    else if (_dma_channel_p == DMA1_Channel3) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+	irq = DMA1_Channel3_IRQn;
+    }
+    else if (_dma_channel_p == DMA1_Channel4) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+	irq = DMA1_Channel4_IRQn;
+    }
+    else if (_dma_channel_p == DMA1_Channel5) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+	irq = DMA1_Channel5_IRQn;
+    }
+    else if (_dma_channel_p == DMA1_Channel6) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+	irq = DMA1_Channel6_IRQn;
+    }
+    else if (_dma_channel_p == DMA1_Channel7) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+	irq = DMA1_Channel7_IRQn;
+    }
 
+#ifdef STM32F10X_HD_VL
+
+    else if (_dma_channel_p == DMA2_Channel1) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+	irq = DMA2_Channel1_IRQn;
+    }
+    else if (_dma_channel_p == DMA2_Channel2) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+	irq = DMA2_Channel2_IRQn;
+    }
+    else if (_dma_channel_p == DMA2_Channel3) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+	irq = DMA2_Channel3_IRQn;
+    }
+    else if (_dma_channel_p == DMA2_Channel4) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+	irq = DMA2_Channel4_5_IRQn;
+    }
+    else if (_dma_channel_p == DMA2_Channel5) {
+	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+	irq = DMA2_Channel4_5_IRQn;
+    }
+
+#endif
+    
     // enable the IRQ
     NVIC_InitTypeDef NVIC_InitStructure;
     
     // enable the DMA Interrupt
-    NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel1_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannel = irq;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
 }
@@ -87,6 +140,9 @@ DMA DMA1Channel6(DMA1_Channel6);
 #if defined(DMA1_CHANNEL7_USED)
 DMA DMA1Channel7(DMA1_Channel7);
 #endif
+
+#ifdef STM32F10X_HD_VL
+
 #if defined(DMA2_CHANNEL1_USED)
 DMA DMA2Channel1(DMA2_Channel1);
 #endif
@@ -101,6 +157,8 @@ DMA DMA2Channel4(DMA2_Channel4);
 #endif
 #if defined(DMA2_CHANNEL5_USED)
 DMA DMA2Channel5(DMA2_Channel5);
+#endif
+
 #endif
 
 // ----- DMA1_Channel1_IRQHandler() ----------------------------------------------------
@@ -194,6 +252,8 @@ void DMA1_Channel7_IRQHandler( void )
 }
 #endif
 
+#ifdef STM32F10X_HD_VL
+
 // ----- DMA2_Channel1_IRQHandler() ----------------------------------------------------
 #if defined(DMA2_CHANNEL1_USED)
 void DMA2_Channel1_IRQHandler( void )
@@ -233,9 +293,9 @@ void DMA2_Channel3_IRQHandler( void )
 }
 #endif
 
-// ----- DMA2_Channel4_IRQHandler() ----------------------------------------------------
-#if defined(DMA2_CHANNEL4_USED)
-void DMA2_Channel4_IRQHandler( void )
+// ----- DMA2_Channel4_5_IRQHandler() ----------------------------------------------------
+#if defined(DMA2_CHANNEL4_USED) || defined(DMA2_CHANNEL5_USED)
+void DMA2_Channel4_5_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
     if( DMA_GetITStatus( DMA2_IT_TC4 ) != RESET )
@@ -243,13 +303,6 @@ void DMA2_Channel4_IRQHandler( void )
         DMA2Channel4.complete_transaction();
         DMA_ClearFlag( DMA2_IT_TC4 );
     }
-}
-#endif
-
-// ----- DMA2_Channel5_IRQHandler() ----------------------------------------------------
-#if defined(DMA2_CHANNEL5_USED)
-void DMA2_Channel5_IRQHandler( void )
-{
     // Indicates that the TX buffer contents have been transmitted.
     if( DMA_GetITStatus( DMA2_IT_TC5 ) != RESET )
     {
@@ -258,5 +311,7 @@ void DMA2_Channel5_IRQHandler( void )
     }
 }
 #endif
+
+#endif // STM32F10X_HD_VL
 
 // ----------------------------------------------------------------------------

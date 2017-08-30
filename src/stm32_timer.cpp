@@ -1,11 +1,11 @@
 /*
- * Timer.cpp
+ * stm32_timer.cpp
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
  */
 
-#include "Timer.h"
+#include "stm32_timer.h"
 #include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------

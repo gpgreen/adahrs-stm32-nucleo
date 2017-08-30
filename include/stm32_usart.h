@@ -1,5 +1,5 @@
 /*
- * USART.cpp
+ * stm32_usart.cpp
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
@@ -10,7 +10,7 @@
 
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
-#include "DMA.h"
+#include "stm32_dma.h"
 
 // ----------------------------------------------------------------------------
 
@@ -38,9 +38,10 @@ private:
 private:
     int _devno;
     DMA& _tx_dma;
+    DMA& _rx_dma;
     // transmit buffer members
     volatile uint8_t _tx_buffer[TX_BUFFER_SIZE];
-    uint8_t* _tx_buf_p;
+    volatile uint8_t* _tx_buf_p;
     volatile uint8_t _tx_buffer_start;
     volatile bool _tx_busy;
     // receive buffer members
@@ -51,4 +52,4 @@ private:
 
 // ----------------------------------------------------------------------------
 
-#endif // TIMER_H_
+#endif // STM32_USART_H_

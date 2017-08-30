@@ -38,8 +38,10 @@
 #include <stdlib.h>
 #include "diag/Trace.h"
 
-#include "ADAHRSInit.h"
-#include "Timer.h"
+#include "adahrs_init.h"
+#include "stm32_timer.h"
+#include "stm32_usart.h"
+#include "stm32_dma.h"
 
 // ----------------------------------------------------------------------------
 //
@@ -70,6 +72,8 @@ int main(int, char**);
 //#pragma GCC diagnostic ignored "-Wmissing-declarations"
 //#pragma GCC diagnostic ignored "-Wreturn-type"
 
+USART usart2(2);
+
 int
 main(int /*argc*/, char* /*argv*/[])
 {
@@ -80,6 +84,7 @@ main(int /*argc*/, char* /*argv*/[])
     timer.start();
 
     ADAHRSInit init();
+    //usart2.begin(115200);
 
     uint32_t seconds = 0;
 
@@ -90,6 +95,8 @@ main(int /*argc*/, char* /*argv*/[])
 
         led_off();
         timer.sleep(BLINK_OFF_TICKS);
+
+        //usart2.transmit("hello!", 6);
 
         ++seconds;
     }
