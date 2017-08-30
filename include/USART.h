@@ -10,6 +10,7 @@
 
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
+#include "DMA.h"
 
 // ----------------------------------------------------------------------------
 
@@ -18,7 +19,8 @@ class USART
 public:
     explicit USART(int device_no);
 
-    int transmit(const char* txdata, int len);
+    // transmit some data, return false if buffer full
+    bool transmit(const char* txdata, int len);
 
 private:
     
@@ -32,12 +34,16 @@ private:
 
 private:
     int _devno;
+    DMA& _tx_dma;
+    // transmit buffer members
     volatile uint8_t _tx_buffer[TX_BUFFER_SIZE];
+    uint8_t* _tx_buf_p;
     volatile uint8_t _tx_buffer_start;
-    volatile uint8_t _tx_busy;
+    volatile bool _tx_busy;
+    // receive buffer members
     volatile uint8_t _rx_buffer[RX_BUFFER_SIZE];
     volatile uint8_t _rx_buffer_start;
-    volatile uint8_t _rx_busy;
+    volatile bool _rx_busy;
 };
 
 // ----------------------------------------------------------------------------

@@ -5,54 +5,82 @@
  *      Author: ggreen
  */
 
+#include <functional>
 #include "USART.h"
 
 // ----------------------------------------------------------------------------
 
-
 USART::USART(int device_no)
-    : _devno(device_no), _tx_buffer_start(0), _tx_busy(0),
+    : _devno(device_no), _tx_buf_p(nullptr), _tx_buffer_start(0), _tx_busy(false),
       _rx_buffer_start(0)
 {
-    // does nothing else
+    _tx_dma = DMA1Channel1;
+#if defined(DMA1_CHANNEL4_USED)
+    if (device_no == 1)
+        _tx_dma = DMA1Channel4;
+#endif
+#if defined(DMA1_CHANNEL7_USED)
+    if (device_no == 2)
+        _tx_dma = DMA1Channel7;
+#endif
+#if defined(DMA1_CHANNEL2_USED)
+    if (device_no == 3)
+        _tx_dma = DMA1Channel2;
+#endif
+#if defined(DMA2_CHANNEL5_USED)
+    if (device_no == 4)
+        _tx_dma = DMA2Channel5;
+#endif
+#if !defined(DMA1_CHANNEL4_USED) && !defined(DMA1_CHANNEL7_USED) && !defined(DMA1_CHANNEL2_USED) && !defined(DMA2_CHANNEL5_USED)
+#error "Must define one of the DMA Channels used by the USART"
+#endif
 }
 
 // ----------------------------------------------------------------------------
 
-int
+bool
 USART::transmit (const char* txdata, int len)
 {
     if (len + _tx_buffer_start > TX_BUFFER_SIZE)
-	return 0;
-    for (int i=0; i<len; ++i)
-	_tx_buffer[_tx_buffer_start++] = txdata[i];
+        return false;
 
+    _tx_buf_p = &_tx_buffer[_tx_buffer_start];
+
+    for (int i=0; i<len; ++i)
+        _tx_buffer[_tx_buffer_start++] = txdata[i];
+    
     tx_start();
 
-    return 1;
+    return true;
 }
 
 void
 USART::tx_start (void)
 {
     if (_tx_busy)
-	return;
+        return;
 
     if (_tx_buffer_start == 0)
-	return;
+        return;
 
-    _tx_busy = 1;
+    _tx_busy = true;
 
-#if 0
     // Configure the DMA controller to make the transfer
     DMA_InitTypeDef DMA_InitStructure;
 
     // Configure the DMA controller to make the transfer
-    DMA_DeInit(_tx_dma_channel);
-    DMA_InitStructure.DMA_PeripheralBaseAddr = USART1->DR;
-    DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)_tx_buffer;
+    if (_devno == 1)
+        DMA_InitStructure.DMA_PeripheralBaseAddr = USART1->DR;
+    else if (_devno == 2)
+        DMA_InitStructure.DMA_PeripheralBaseAddr = USART2->DR;
+    else if (_devno == 3)
+        DMA_InitStructure.DMA_PeripheralBaseAddr = USART3->DR;
+    else if (_devno == 4)
+        DMA_InitStructure.DMA_PeripheralBaseAddr = USART4->DR;
+    DMA_InitStructure.DMA_MemoryBaseAddr = static_cast<uint32_t>(_tx_buf_p);
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
-    DMA_InitStructure.DMA_BufferSize = _tx_buffer_start;
+    // set buffer size to difference between end of data, and start of send
+    DMA_InitStructure.DMA_BufferSize = (&_tx_buffer[_tx_buffer_start] - _tx_buf_p);
     DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
     DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
     DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
@@ -60,28 +88,30 @@ USART::tx_start (void)
     DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
     DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
     DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
-    DMA_Init(_tx_dma_channel, &DMA_InitStructure);
-    
-    // Enable the DMA controller to copy data from the TX buffer to the USART peripheral
-    DMA_Cmd(_tx_dma_channel, ENABLE);
 
-    // set the callback function for transfer complete
-    
-    // Enable TX DMA transfer complete interrupt
-    DMA_ITConfig(_tx_dma_channel, DMA_IT_TC, ENABLE );
-#endif
+    // this line is a problem if called within IRQ (tx_dma_complete)
+    while (_tx_dma.is_busy() 
+           || !_tx_dma.start(&DMA_InitStructure, 
+                             std::bind(&USART::tx_dma_complete, this)));
 }
 
+// called from within IRQ
 void USART::tx_dma_complete(void)
 {
-    _tx_buffer_start = 0;
-    _tx_busy = 0;
+    _tx_busy = false;
+    // if current buf ptr is the same, then no more data to send
+    if (_tx_buf_p == &_tx_buffer[_tx_buffer_start]) {
+        _tx_buffer_start = 0;
+    } else {
+        // more data to send, send it
+        tx_start();
+    }
 }
 
 void USART::rx_dma_complete(void)
 {
     _rx_buffer_start = 0;
-    _rx_busy = 0;
+    _rx_busy = false;
 }
 
 // ----------------------------------------------------------------------------

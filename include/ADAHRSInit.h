@@ -1,3 +1,10 @@
+/*
+ * ADAHRSInit.h
+ *
+ *  Created on: Aug 28, 2017
+ *      Author: ggreen
+ */
+
 #ifndef ADAHRSINIT_H_
 #define ADAHRSINIT_H_
 

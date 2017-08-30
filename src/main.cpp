@@ -1,4 +1,11 @@
 /*
+ * main.cpp
+ *
+ *  Created on: Aug 28, 2017
+ *      Author: ggreen
+ *
+ * Original copyright header:
+ *
  * This file is part of the µOS++ distribution.
  *   (https://github.com/micro-os-plus)
  * Copyright (c) 2014 Liviu Ionescu.
