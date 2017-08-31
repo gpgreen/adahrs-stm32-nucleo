@@ -7,6 +7,7 @@
 
 #include <functional>
 #include "stm32_usart.h"
+#include "work_queue.h"
 
 // ----------------------------------------------------------------------------
 
@@ -24,12 +25,12 @@ USART::USART(int device_no)
         _rx_dma = &DMA1Channel5;
 #endif
 #ifdef DMA1_CHANNEL7_USED
-//    if (device_no == 2)
-//        _tx_dma = &DMA1Channel7;
+    if (device_no == 2)
+        _tx_dma = &DMA1Channel7;
 #endif
 #ifdef DMA1_CHANNEL6_USED
-//    if (device_no == 2)
-//        _rx_dma = &DMA1Channel6;
+    if (device_no == 2)
+        _rx_dma = &DMA1Channel6;
 #endif
 #ifdef DMA1_CHANNEL2_USED
     if (device_no == 3)
@@ -53,23 +54,18 @@ USART::begin(int baud_rate)
     GPIO_TypeDef* pinport;
     
     if (_devno == 1) {
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_USART1, ENABLE);
 	usart = USART1;
 	txpin = GPIO_Pin_9;
 	rxpin = GPIO_Pin_10;
 	pinport = GPIOA;
     }
     if (_devno == 2) {
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 	usart = USART2;
 	txpin = GPIO_Pin_2;
 	rxpin = GPIO_Pin_3;
 	pinport = GPIOA;
     }
     if (_devno == 3) {
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
 	usart = USART3;
 	txpin = GPIO_Pin_10;
 	rxpin = GPIO_Pin_11;
@@ -131,13 +127,13 @@ USART::transmit (const char* txdata, int len)
     for (int i=0; i<len; ++i)
         _tx_buffer[_tx_buffer_start++] = txdata[i];
     
-    tx_start();
+    tx_start(false);
 
     return true;
 }
 
 void
-USART::tx_start (void)
+USART::tx_start (bool in_irq)
 {
     if (_tx_busy)
         return;
@@ -169,10 +165,13 @@ USART::tx_start (void)
     DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
     DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 
-    // this line is a problem if called within IRQ (tx_dma_complete)
-    while (_tx_dma->is_busy() 
-           || !_tx_dma->start(&DMA_InitStructure, 
-                             std::bind(&USART::tx_dma_complete, this)));
+    if (!_tx_dma->start(&DMA_InitStructure, std::bind(&USART::tx_dma_complete, this))) {
+      _tx_busy = false;
+      if (in_irq)
+	g_work_queue.add_work_irq(std::bind(&USART::tx_start, this));
+      else
+	g_work_queue.add_work(std::bind(&USART::tx_start, this));
+    }
 }
 
 // called from within IRQ
@@ -184,7 +183,7 @@ void USART::tx_dma_complete(void)
         _tx_buffer_start = 0;
     } else {
         // more data to send, send it
-        tx_start();
+        tx_start(true);
     }
 }
 

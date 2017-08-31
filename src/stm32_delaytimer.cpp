@@ -1,11 +1,11 @@
 /*
- * stm32_timer.cpp
+ * stm32_delaytimer.cpp
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
  */
 
-#include "stm32_timer.h"
+#include "stm32_delaytimer.h"
 #include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------
@@ -15,11 +15,11 @@ void HAL_IncTick(void);
 #endif
 
 // global variable used to for counts
-volatile Timer::timer_ticks_t g_delay_count;
+volatile DelayTimer::timer_ticks_t g_delay_count;
 
 // ----------------------------------------------------------------------------
 
-Timer::Timer(timer_ticks_t timer_freq_hz)
+DelayTimer::DelayTimer(timer_ticks_t timer_freq_hz)
 : _timer_freq_hz(timer_freq_hz)
 {
     // does nothing else
@@ -28,14 +28,14 @@ Timer::Timer(timer_ticks_t timer_freq_hz)
 // ----------------------------------------------------------------------------
 
 void
-Timer::start (void)
+DelayTimer::start (void)
 {
     // Use SysTick as reference for the delay loops.
     SysTick_Config (SystemCoreClock / _timer_freq_hz);
 }
 
 void
-Timer::sleep (timer_ticks_t ticks)
+DelayTimer::sleep (timer_ticks_t ticks)
 {
     g_delay_count = ticks;
 

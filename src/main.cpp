@@ -39,7 +39,7 @@
 #include "diag/Trace.h"
 
 #include "adahrs_init.h"
-#include "stm32_timer.h"
+#include "stm32_delaytimer.h"
 #include "stm32_usart.h"
 #include "stm32_dma.h"
 
@@ -72,19 +72,19 @@ int main(int, char**);
 //#pragma GCC diagnostic ignored "-Wmissing-declarations"
 //#pragma GCC diagnostic ignored "-Wreturn-type"
 
-//USART usart2(2);
+USART usart2(2);
 
 int
 main(int /*argc*/, char* /*argv*/[])
 {
     // At this stage the system clock should have already been configured
     // at high speed.
-    Timer timer(TIMER_FREQUENCY_HZ);
+    DelayTimer delaytimer(TIMER_FREQUENCY_HZ);
     
-    timer.start();
+    delaytimer.start();
 
     ADAHRSInit init();
-    //usart2.begin(115200);
+    usart2.begin(115200);
 
     uint32_t seconds = 0;
 
@@ -92,12 +92,12 @@ main(int /*argc*/, char* /*argv*/[])
     while (1)
     {
     	led_on();
-        timer.sleep(seconds == 0 ? TIMER_FREQUENCY_HZ : BLINK_ON_TICKS);
+        delaytimer.sleep(seconds == 0 ? TIMER_FREQUENCY_HZ : BLINK_ON_TICKS);
 
         led_off();
-        timer.sleep(BLINK_OFF_TICKS);
+        delaytimer.sleep(BLINK_OFF_TICKS);
 
-        //usart2.transmit("hello!", 6);
+        usart2.transmit("hello!", 6);
 
         ++seconds;
     }

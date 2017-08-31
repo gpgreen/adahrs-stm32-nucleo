@@ -30,7 +30,11 @@ public:
     void complete_transaction();
     
 private:
+    // define away copy constructor and assignment operator
+    DMA(const DMA&);
+    const DMA& operator=(const DMA&);
 
+    // members
     std::function<void(void)> _completed_fn;
     volatile uint32_t _busy;
     DMA_Channel_TypeDef* _dma_channel_p;

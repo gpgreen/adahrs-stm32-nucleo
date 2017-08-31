@@ -23,56 +23,43 @@ void
 DMA::begin(uint8_t priority, uint8_t subpriority)
 {
     uint8_t irq = 0;
-    // enable the DMA clock
     if (_dma_channel_p == DMA1_Channel1) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 	irq = DMA1_Channel1_IRQn;
     }
     else if (_dma_channel_p == DMA1_Channel2) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 	irq = DMA1_Channel2_IRQn;
     }
     else if (_dma_channel_p == DMA1_Channel3) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 	irq = DMA1_Channel3_IRQn;
     }
     else if (_dma_channel_p == DMA1_Channel4) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 	irq = DMA1_Channel4_IRQn;
     }
     else if (_dma_channel_p == DMA1_Channel5) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 	irq = DMA1_Channel5_IRQn;
     }
     else if (_dma_channel_p == DMA1_Channel6) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 	irq = DMA1_Channel6_IRQn;
     }
     else if (_dma_channel_p == DMA1_Channel7) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 	irq = DMA1_Channel7_IRQn;
     }
 
 #ifdef STM32F10X_HD_VL
 
     else if (_dma_channel_p == DMA2_Channel1) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
 	irq = DMA2_Channel1_IRQn;
     }
     else if (_dma_channel_p == DMA2_Channel2) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
 	irq = DMA2_Channel2_IRQn;
     }
     else if (_dma_channel_p == DMA2_Channel3) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
 	irq = DMA2_Channel3_IRQn;
     }
     else if (_dma_channel_p == DMA2_Channel4) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
 	irq = DMA2_Channel4_5_IRQn;
     }
     else if (_dma_channel_p == DMA2_Channel5) {
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
 	irq = DMA2_Channel4_5_IRQn;
     }
 
@@ -135,10 +122,10 @@ DMA DMA1Channel4(DMA1_Channel4);
 DMA DMA1Channel5(DMA1_Channel5);
 #endif
 #ifdef DMA1_CHANNEL6_USED
-//DMA DMA1Channel6(DMA1_Channel6);
+DMA DMA1Channel6(DMA1_Channel6);
 #endif
 #ifdef DMA1_CHANNEL7_USED
-//DMA DMA1Channel7(DMA1_Channel7);
+DMA DMA1Channel7(DMA1_Channel7);
 #endif
 
 #ifdef STM32F10X_HD_VL
@@ -233,7 +220,7 @@ void DMA1_Channel6_IRQHandler( void )
     // Indicates that the TX buffer contents have been transmitted.
     if( DMA_GetITStatus( DMA1_IT_TC6 ) != RESET )
     {
-//        DMA1Channel6.complete_transaction();
+        DMA1Channel6.complete_transaction();
         DMA_ClearFlag( DMA1_IT_TC6 );
     }
 }
@@ -246,7 +233,7 @@ void DMA1_Channel7_IRQHandler( void )
     // Indicates that the TX buffer contents have been transmitted.
     if( DMA_GetITStatus( DMA1_IT_TC7 ) != RESET )
     {
-//        DMA1Channel7.complete_transaction();
+        DMA1Channel7.complete_transaction();
         DMA_ClearFlag( DMA1_IT_TC7 );
     }
 }

@@ -22,9 +22,6 @@
 #define LED_PIN_NUMBER                GPIO_Pin_5
 //#define LED_ACTIVE_LOW                (1)
 
-#define ADAHRS_GPIOx(_N)                 ((GPIO_TypeDef *)(GPIOA_BASE + (GPIOB_BASE-GPIOA_BASE)*(_N)))
-#define ADAHRS_PIN_MASK(_N)              (1 << (_N))
-#define ADAHRS_RCC_MASKx(_N)             (RCC_APB2Periph_GPIOA << (_N))
 // ----------------------------------------------------------------------------
 
 class ADAHRSInit
@@ -32,6 +29,10 @@ class ADAHRSInit
 public:
     explicit ADAHRSInit();
 
+private:
+    // define away copy constructor and assignment operator
+    ADAHRSInit(const ADAHRSInit&);
+    const ADAHRSInit& operator=(const ADAHRSInit&);
 };
 
 inline void
