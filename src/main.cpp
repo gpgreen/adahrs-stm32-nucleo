@@ -72,6 +72,7 @@ int main(int, char**);
 //#pragma GCC diagnostic ignored "-Wmissing-declarations"
 //#pragma GCC diagnostic ignored "-Wreturn-type"
 
+ADAHRSInit init;
 USART usart2(2);
 
 int
@@ -83,7 +84,7 @@ main(int /*argc*/, char* /*argv*/[])
     
     delaytimer.start();
 
-    ADAHRSInit init();
+    init.begin();
     usart2.begin(115200);
 
     uint32_t seconds = 0;

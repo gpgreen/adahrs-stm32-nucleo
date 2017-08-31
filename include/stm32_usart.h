@@ -27,7 +27,7 @@ public:
 
 private:
     
-    void tx_start();
+    void tx_start(bool in_irq);
     void tx_dma_complete();
     void rx_dma_complete();
     

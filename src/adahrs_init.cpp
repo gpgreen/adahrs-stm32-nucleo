@@ -13,6 +13,11 @@
 
 ADAHRSInit::ADAHRSInit()
 {
+	// does nothing else
+}
+
+void ADAHRSInit::begin(void)
+{
     // Enable Peripheral clocks
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA 
 			   | RCC_APB2Periph_AFIO
@@ -35,7 +40,7 @@ ADAHRSInit::ADAHRSInit()
     DMA1Channel6.begin(2, 0);
     DMA1Channel7.begin(2, 0);
 
-    // configuer Timer2 for work queue
+    // configure Timer2 for work queue
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
     TIM_TimeBaseStructure.TIM_Period = 2000;
     TIM_TimeBaseStructure.TIM_Prescaler = 72;
@@ -45,6 +50,7 @@ ADAHRSInit::ADAHRSInit()
 
     // Enable the TIM2 global Interrupt and set at lowest priority.
     // This is used to tell the MCU to transmit newest state data over the UART
+    NVIC_InitTypeDef NVIC_InitStructure;
     NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = WORKQUEUE_IRQ_PRIORITY;
     NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;

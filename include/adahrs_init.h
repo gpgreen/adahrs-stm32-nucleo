@@ -29,6 +29,8 @@ class ADAHRSInit
 public:
     explicit ADAHRSInit();
 
+    void begin();
+
 private:
     // define away copy constructor and assignment operator
     ADAHRSInit(const ADAHRSInit&);
@@ -64,6 +66,8 @@ led_off(void)
   GPIO_WriteBit(LED_PORT_NUMBER, LED_PIN_NUMBER, Bit_RESET);
 #endif
 }
+
+extern void TIM2_IRQHandler(void);
 
 // ----------------------------------------------------------------------------
 #endif

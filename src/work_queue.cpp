@@ -11,7 +11,7 @@
 // ----------------------------------------------------------------------------
 
 // the global instance of the work queue
-WorkQueue g_work_queue();
+WorkQueue g_work_queue;
 
 // ----------------------------------------------------------------------------
 
@@ -31,7 +31,7 @@ WorkQueue::process (void)
     return;
   if (_queue[0]) {
     _queue[0]();
-    for (int i=1; i<_queue_end; ++i) {
+    for (unsigned int i=1; i<_queue_end; ++i) {
       _queue[i-1] = _queue[i];
     }
     --_queue_end;
@@ -59,7 +59,7 @@ WorkQueue::add_work (std::function<void(void)> work_fn)
   // those irq
   bool retval = false;
   // === START critical section
-  __set_BASEPRI(WORKQUEUE_PROCESS_IRQ_MASK);
+  __set_BASEPRI(WORKQUEUE_IRQ_MASKING);
   if (_queue_end < WORK_QUEUE_LENGTH) {
     _queue[_queue_end++] = work_fn;
     retval = true;

@@ -21,7 +21,7 @@ public:
     explicit WorkQueue();
 
     void process();
-    bool add_work_irq(std::function<void(void)> work_fn);
+    void add_work_irq(std::function<void(void)> work_fn);
     bool add_work(std::function<void(void)> work_fn);
 
 private:
@@ -31,7 +31,7 @@ private:
 
     // members
     std::function<void(void)> _queue[WORK_QUEUE_LENGTH];
-    volatile uint8_t _queue_end;
+    volatile uint32_t _queue_end;
 };
 
 // ----------------------------------------------------------------------------

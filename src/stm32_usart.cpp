@@ -168,9 +168,9 @@ USART::tx_start (bool in_irq)
     if (!_tx_dma->start(&DMA_InitStructure, std::bind(&USART::tx_dma_complete, this))) {
       _tx_busy = false;
       if (in_irq)
-	g_work_queue.add_work_irq(std::bind(&USART::tx_start, this));
+	g_work_queue.add_work_irq(std::bind(&USART::tx_start, this, false));
       else
-	g_work_queue.add_work(std::bind(&USART::tx_start, this));
+	g_work_queue.add_work(std::bind(&USART::tx_start, this, false));
     }
 }
 
