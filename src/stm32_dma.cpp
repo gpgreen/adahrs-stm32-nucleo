@@ -82,16 +82,21 @@ DMA::start(DMA_InitTypeDef* init, std::function<void(void)> cb)
     if (_busy)
         return false;
 
+    _busy = 1;
+
     _completed_fn = cb;
 
     DMA_DeInit(_dma_channel_p);
     DMA_Init(_dma_channel_p, init);
 
-    // enable the DMA controller
-    DMA_Cmd(_dma_channel_p, ENABLE);
+    // clear the completion flag
+    DMA_ClearFlag(DMA1_IT_TC7);
 
     // enable DMA transfer complete interrupt
     DMA_ITConfig(_dma_channel_p, DMA_IT_TC, ENABLE);
+
+    // enable the DMA controller
+    DMA_Cmd(_dma_channel_p, ENABLE);
 
     return true;
 }

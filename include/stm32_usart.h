@@ -37,6 +37,7 @@ private:
 
 private:
     int _devno;
+    USART_TypeDef* _uart;
     DMA* _tx_dma;
     DMA* _rx_dma;
     // transmit buffer members
