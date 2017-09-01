@@ -44,6 +44,8 @@ private:
 private:
     int _devno;
     USART_TypeDef* _uart;
+    uint8_t _irqno;
+    uint8_t _padding [3];
     DMA* _tx_dma;
     DMA* _rx_dma;
     // transmit buffer members

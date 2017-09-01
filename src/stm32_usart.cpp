@@ -12,7 +12,7 @@
 // ----------------------------------------------------------------------------
 
 USART::USART(int device_no) :
-		_devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr), _tx_buf_p(
+		_devno(device_no), _irqno(0), _tx_dma(nullptr), _rx_dma(nullptr), _tx_buf_p(
 				nullptr), _tx_buffer_start(0), _tx_busy(false), _rx_buffer_start(
 				0), _rx_busy(false)
 {
@@ -25,6 +25,7 @@ USART::USART(int device_no) :
 		_rx_dma = &DMA1Channel5;
 #endif
 		_uart = USART1;
+		_irqno = USART1_IRQn;
 	}
 	else if (device_no == 2)
 	{
@@ -35,6 +36,7 @@ USART::USART(int device_no) :
 		_rx_dma = &DMA1Channel6;
 #endif
 		_uart = USART2;
+		_irqno = USART2_IRQn;
 	}
 	else if (device_no == 3)
 	{
@@ -45,6 +47,7 @@ USART::USART(int device_no) :
 		_rx_dma = &DMA1Channel3;
 #endif
 		_uart = USART3;
+		_irqno = USART3_IRQn;
 	}
 	else {
 		while(1);
@@ -84,13 +87,14 @@ void USART::begin(int baud_rate)
 
 	// Configure USART Rx as input, internal pullup
 	GPIO_InitStructure.GPIO_Pin = rxpin;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
 	GPIO_Init(pinport, &GPIO_InitStructure);
 
-	// Configure USART Tx as alternate function push-pull
+	// Configure USART Tx as push-pull
 	GPIO_InitStructure.GPIO_Pin = txpin;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
 	GPIO_Init(pinport, &GPIO_InitStructure);
 
 	/* USART1 is configured as followS:
@@ -114,6 +118,18 @@ void USART::begin(int baud_rate)
 	// configure USART
 	USART_DeInit(_uart);
 	USART_Init(_uart, &USART_InitStructure);
+
+#if 0
+	// enable the IRQ
+	NVIC_InitTypeDef NVIC_InitStructure;
+
+	// enable the DMA Interrupt
+	NVIC_InitStructure.NVIC_IRQChannel = _irqno;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStructure);
+#endif
 
 	// enable USART
 	USART_Cmd(_uart, ENABLE);
@@ -141,16 +157,18 @@ void USART::tx_start(bool in_irq)
 
 	_tx_busy = true;
 
+	USART_SendData(_uart, 'c');
+
 	// Configure the DMA controller to make the transfer
 	DMA_InitTypeDef DMA_InitStructure;
 
 	// Configure the DMA controller to make the transfer
 	if (_devno == 1)
-		DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &USART1->DR;
+		DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &(USART1->DR);
 	else if (_devno == 2)
-		DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &USART2->DR;
+		DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &(USART2->DR);
 	else if (_devno == 3)
-		DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &USART3->DR;
+		DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &(USART3->DR);
 	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t) _tx_buf_p;
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
 	// set buffer size to difference between end of data, and start of send
@@ -166,6 +184,11 @@ void USART::tx_start(bool in_irq)
 	// bind the usart to dma
 	USART_DMACmd(_uart, USART_DMAReq_Tx, ENABLE);
 
+	// set the TXC interrupt
+	//USART_ITConfig(_uart, USART_IT_TC, ENABLE);
+	// clear the TC bit in the SR register
+	USART_ClearFlag(_uart, USART_FLAG_TC);
+	
 	if (!_tx_dma->start(&DMA_InitStructure,
 			std::bind(&USART::tx_dma_complete, this)))
 	{
