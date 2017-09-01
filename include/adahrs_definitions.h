@@ -13,7 +13,7 @@
 // size of work queue buffer
 // ----------------------------------------------------------------------------
 #define WORK_QUEUE_LENGTH                8
-#define WORKQUEUE_IRQ_PRIORITY           0xF
+#define WORKQUEUE_IRQ_PRIORITY           0xf
 #define WORKQUEUE_IRQ_MASKING            0x10
 
 // ----------------------------------------------------------------------------

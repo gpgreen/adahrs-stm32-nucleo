@@ -25,6 +25,12 @@ public:
     // transmit some data, return false if buffer full
     bool transmit(const char* txdata, int len);
 
+    // received data?
+    bool has_received_data();
+
+    // get received data, returns count of data copied
+    unsigned int get_received_data(uint8_t* buf, int buflen);
+
 private:
     
     void tx_start(bool in_irq);

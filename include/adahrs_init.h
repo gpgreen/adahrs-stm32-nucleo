@@ -67,7 +67,15 @@ led_off(void)
 #endif
 }
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 extern void TIM2_IRQHandler(void);
+
+#if defined(__cplusplus)
+}
+#endif
 
 // ----------------------------------------------------------------------------
 #endif

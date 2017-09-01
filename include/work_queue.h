@@ -31,6 +31,7 @@ private:
 
     // members
     std::function<void(void)> _queue[WORK_QUEUE_LENGTH];
+    volatile uint32_t _queue_start;
     volatile uint32_t _queue_end;
 };
 

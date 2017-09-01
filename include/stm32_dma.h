@@ -27,8 +27,11 @@ public:
     // start a transaction with given parameters and callback
     // returns false if DMA is busy
     bool start(DMA_InitTypeDef* init, std::function<void(void)> cb);
-    void complete_transaction();
     
+    // method executed when transaction complete irq is triggered, not
+    // meant to be used
+    void priv_complete_transaction();
+
 private:
     // define away copy constructor and assignment operator
     DMA(const DMA&);
@@ -36,8 +39,11 @@ private:
 
     // members
     std::function<void(void)> _completed_fn;
-    volatile uint32_t _busy;
     DMA_Channel_TypeDef* _dma_channel_p;
+    uint32_t _dma_it_tc_flag;
+    uint8_t _irqno;
+    volatile bool _busy;
+    uint8_t _unused [2];
 };
 
 // instantiate objects for each channel
@@ -84,8 +90,11 @@ extern DMA DMA2Channel5;
 #endif
 
 // define the interrupt handlers
+#if defined(__cplusplus)
 extern "C"
 {
+#endif
+
 #ifdef DMA1_CHANNEL1_USED
     void DMA1_Channel1_IRQHandler(void);
 #endif
@@ -124,7 +133,10 @@ extern "C"
 #endif
 
 #endif
+
+#if defined(__cplusplus)
 }
+#endif
 
 // ----------------------------------------------------------------------------
 
