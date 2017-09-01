@@ -23,6 +23,13 @@
 #define RX_BUFFER_SIZE                   64
 
 // ----------------------------------------------------------------------------
+// which USART's are we using
+// ----------------------------------------------------------------------------
+//#define USART1_USED
+#define USART2_USED
+//#define USART3_USED
+
+// ----------------------------------------------------------------------------
 // which DMA's are we using
 // ----------------------------------------------------------------------------
 //#define DMA1_CHANNEL1_USED
@@ -35,11 +42,11 @@
 
 #ifdef STM32F10X_HD_VL
 
-#define DMA2_CHANNEL1_USED
-#define DMA2_CHANNEL2_USED
-#define DMA2_CHANNEL3_USED
-#define DMA2_CHANNEL4_USED
-#define DMA2_CHANNEL5_USED
+//#define DMA2_CHANNEL1_USED
+//#define DMA2_CHANNEL2_USED
+//#define DMA2_CHANNEL3_USED
+//#define DMA2_CHANNEL4_USED
+//#define DMA2_CHANNEL5_USED
 
 #endif // STM32F10X_HD_VL
 

@@ -12,9 +12,8 @@
 // ----------------------------------------------------------------------------
 
 USART::USART(int device_no) :
-		_devno(device_no), _irqno(0), _tx_dma(nullptr), _rx_dma(nullptr), _tx_buf_p(
-				nullptr), _tx_buffer_start(0), _tx_busy(false), _rx_buffer_start(
-				0), _rx_busy(false)
+	_devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr), _tx_buf_p(nullptr),
+	_tx_buffer_start(0),  _irqno(0), _tx_busy(false), _rx_busy(false), _rx_buffer_start(0)
 {
 	if (device_no == 1)
 	{
@@ -49,14 +48,16 @@ USART::USART(int device_no) :
 		_uart = USART3;
 		_irqno = USART3_IRQn;
 	}
-	else {
-		while(1);
+	else
+	{
+		while (1)
+			;
 	}
 }
 
 // ----------------------------------------------------------------------------
 
-void USART::begin(int baud_rate)
+void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
 {
 	// enable the UART clock, get pins and port numbers
 	uint16_t txpin = 0;
@@ -87,7 +88,6 @@ void USART::begin(int baud_rate)
 
 	// Configure USART Rx as input, internal pullup
 	GPIO_InitStructure.GPIO_Pin = rxpin;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
 	GPIO_Init(pinport, &GPIO_InitStructure);
 
@@ -111,28 +111,31 @@ void USART::begin(int baud_rate)
 	USART_InitStructure.USART_WordLength = USART_WordLength_8b;
 	USART_InitStructure.USART_StopBits = USART_StopBits_1;
 	USART_InitStructure.USART_Parity = USART_Parity_No;
-	USART_InitStructure.USART_HardwareFlowControl =
-			USART_HardwareFlowControl_None;
+	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
 	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
 
 	// configure USART
 	USART_DeInit(_uart);
 	USART_Init(_uart, &USART_InitStructure);
 
-#if 0
+	// configure interrupt vector
+	configure_nvic(priority, subpriority);
+
+	// enable USART
+	USART_Cmd(_uart, ENABLE);
+}
+
+void USART::configure_nvic(uint8_t priority, uint8_t subpriority)
+{
 	// enable the IRQ
 	NVIC_InitTypeDef NVIC_InitStructure;
 
 	// enable the DMA Interrupt
 	NVIC_InitStructure.NVIC_IRQChannel = _irqno;
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
-#endif
-
-	// enable USART
-	USART_Cmd(_uart, ENABLE);
 }
 
 bool USART::transmit(const char* txdata, int len)
@@ -157,8 +160,6 @@ void USART::tx_start(bool in_irq)
 
 	_tx_busy = true;
 
-	USART_SendData(_uart, 'c');
-
 	// Configure the DMA controller to make the transfer
 	DMA_InitTypeDef DMA_InitStructure;
 
@@ -172,7 +173,8 @@ void USART::tx_start(bool in_irq)
 	DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t) _tx_buf_p;
 	DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
 	// set buffer size to difference between end of data, and start of send
-	DMA_InitStructure.DMA_BufferSize = &_tx_buffer[_tx_buffer_start] - _tx_buf_p;
+	DMA_InitStructure.DMA_BufferSize = &_tx_buffer[_tx_buffer_start]
+			- _tx_buf_p;
 	DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
 	DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
 	DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
@@ -181,14 +183,21 @@ void USART::tx_start(bool in_irq)
 	DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
 	DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 
-	// bind the usart to dma
+	// check the TC bit, if low, then wait until it is high, then start the new transmission
+	if (USART_GetFlagStatus(_uart, USART_FLAG_TC) == RESET) {
+		_tx_busy = false;
+		if (in_irq)
+			g_work_queue.add_work_irq(std::bind(&USART::tx_start, this, true));
+		else
+			g_work_queue.add_work(std::bind(&USART::tx_start, this, true));
+		return;
+	}
+	// usart dma tx request enabled
 	USART_DMACmd(_uart, USART_DMAReq_Tx, ENABLE);
 
-	// set the TXC interrupt
-	//USART_ITConfig(_uart, USART_IT_TC, ENABLE);
 	// clear the TC bit in the SR register
 	USART_ClearFlag(_uart, USART_FLAG_TC);
-	
+
 	if (!_tx_dma->start(&DMA_InitStructure,
 			std::bind(&USART::tx_dma_complete, this)))
 	{
@@ -209,10 +218,17 @@ bool USART::has_received_data()
 // get received data, returns count of data copied
 unsigned int USART::get_received_data(uint8_t* buf, int buflen)
 {
-	uint8_t sz = buflen > _rx_buffer_start ? _rx_buffer_start : (uint8_t)buflen ;
-	for (int i=0; i<sz; ++i) {
+	int sz = buflen>_rx_buffer_start ? buflen : _rx_buffer_start;
+	for (int i = 0; i < sz; ++i)
+	{
 		buf[i] = _rx_buffer[i];
-		_rx_buffer_start--;
+	}
+	_rx_buffer_start -= sz;
+	if (sz < RX_BUFFER_SIZE) {
+		volatile uint8_t* bufptr = &_rx_buffer[sz];
+		for (int i=RX_BUFFER_SIZE; i>sz; --i,++bufptr) {
+			_rx_buffer[RX_BUFFER_SIZE - i] = *bufptr;
+		}
 	}
 	return sz;
 }
@@ -238,5 +254,57 @@ void USART::rx_dma_complete(void)
 	_rx_busy = false;
 	_rx_buffer_start = 0;
 }
+
+void USART::priv_rx_complete(void)
+{
+
+}
+
+// ----------------------------------------------------------------------------
+
+#ifdef USART1_USED
+
+USART usart1(1);
+
+void USART1_IRQHandler(void)
+{
+	if (USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != RESET) {
+		usart1.priv_rx_complete();
+		// clear the RXNE bit in the SR register (not needed if data read)
+		USART_ClearFlag(USART1, USART_FLAG_RXNE);
+	}
+}
+
+#endif
+
+#ifdef USART2_USED
+
+USART usart2(2);
+
+void USART2_IRQHandler(void)
+{
+	if (USART_GetFlagStatus(USART2, USART_FLAG_RXNE) != RESET) {
+		usart2.priv_rx_complete();
+		// clear the RXNE bit in the SR register (not needed if data read)
+		USART_ClearFlag(USART2, USART_FLAG_RXNE);
+	}
+}
+
+#endif
+
+#ifdef USART3_USED
+
+USART usart3(3);
+
+void USART3_IRQHandler(void)
+{
+	if (USART_GetFlagStatus(USART3, USART_FLAG_RXNE) != RESET) {
+		usart3.priv_rx_complete();
+		// clear the RXNE bit in the SR register (not needed if data read)
+		USART_ClearFlag(USART3, USART_FLAG_RXNE);
+	}
+}
+
+#endif
 
 // ----------------------------------------------------------------------------

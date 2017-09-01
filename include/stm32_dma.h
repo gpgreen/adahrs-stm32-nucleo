@@ -20,10 +20,10 @@ class DMA
 public:
     explicit DMA(DMA_Channel_TypeDef* channel);
 
-    // initalize the hardware
+    // initialize the hardware
     void begin(uint8_t priority, uint8_t subpriority);
     // is the DMA busy?
-    uint32_t is_busy() {return _busy;}
+    bool is_busy() {return _busy;}
     // start a transaction with given parameters and callback
     // returns false if DMA is busy
     bool start(DMA_InitTypeDef* init, std::function<void(void)> cb);
@@ -33,6 +33,7 @@ public:
     void priv_complete_transaction();
 
 private:
+
     // define away copy constructor and assignment operator
     DMA(const DMA&);
     const DMA& operator=(const DMA&);

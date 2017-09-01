@@ -73,7 +73,6 @@ int main(int, char**);
 //#pragma GCC diagnostic ignored "-Wreturn-type"
 
 ADAHRSInit init;
-USART usart2(2);
 
 int
 main(int /*argc*/, char* /*argv*/[])
