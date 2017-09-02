@@ -109,6 +109,7 @@ bool DMA::start(DMA_InitTypeDef* init, void (*cb)(void *), void* data)
 	DMA_Init(_dma_channel_p, init);
 
 	// enable DMA transfer complete interrupt
+        DMA_ITConfig(_dma_channel_p, DMA_IT_HT | DMA_IT_TE, DISABLE);
 	DMA_ITConfig(_dma_channel_p, DMA_IT_TC, ENABLE);
 
 	// enable the DMA controller
