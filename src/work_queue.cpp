@@ -78,18 +78,18 @@ bool WorkQueue::add_work(void (*work_fn)(void *), void* data)
 	bool retval = false;
 	// === START critical section
 	__set_BASEPRI(WORKQUEUE_IRQ_MASKING);
-	uint32_t end = _queue_end++;
+	int end = _queue_end++;
 	if (_queue_end == WORK_QUEUE_LENGTH)
 	{
 		_queue_end = 0;
 	}
 	if (_queue_end == _queue_start)
 	{
-		_queue_end = end;
+		while (1);
 	}
 	else
 	{
-		WorkCallback* cb = &_queue_start[end];
+		WorkCallback* cb = &_queue[end];
 		cb->callback = work_fn;
 		cb->callback_data = data;
 		retval = true;
