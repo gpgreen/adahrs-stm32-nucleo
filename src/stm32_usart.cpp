@@ -5,7 +5,6 @@
  *      Author: ggreen
  */
 
-#include <functional>
 #include "stm32_usart.h"
 #include "work_queue.h"
 
@@ -153,6 +152,12 @@ bool USART::transmit(const char* txdata, int len)
 	return true;
 }
 
+void USART::tx_start_irq(void * data)
+{
+	USART* usart = reinterpret_cast<USART*>(data);
+	usart->tx_start(true);
+}
+
 void USART::tx_start(bool in_irq)
 {
 	if (_tx_busy || _tx_buffer_start == 0)
@@ -187,9 +192,9 @@ void USART::tx_start(bool in_irq)
 	if (USART_GetFlagStatus(_uart, USART_FLAG_TC) == RESET) {
 		_tx_busy = false;
 		if (in_irq)
-			g_work_queue.add_work_irq(std::bind(&USART::tx_start, this, true));
+			g_work_queue.add_work_irq(USART::tx_start_irq, this);
 		else
-			g_work_queue.add_work(std::bind(&USART::tx_start, this, true));
+			g_work_queue.add_work(USART::tx_start_irq, this);
 		return;
 	}
 	// usart dma tx request enabled
@@ -198,14 +203,13 @@ void USART::tx_start(bool in_irq)
 	// clear the TC bit in the SR register
 	USART_ClearFlag(_uart, USART_FLAG_TC);
 
-	if (!_tx_dma->start(&DMA_InitStructure,
-			std::bind(&USART::tx_dma_complete, this)))
+	if (!_tx_dma->start(&DMA_InitStructure, USART::tx_dma_complete, this))
 	{
 		_tx_busy = false;
 		if (in_irq)
-			g_work_queue.add_work_irq(std::bind(&USART::tx_start, this, true));
+			g_work_queue.add_work_irq(USART::tx_start_irq, this);
 		else
-			g_work_queue.add_work(std::bind(&USART::tx_start, this, true));
+			g_work_queue.add_work(USART::tx_start_irq, this);
 	}
 }
 
@@ -234,18 +238,19 @@ unsigned int USART::get_received_data(uint8_t* buf, int buflen)
 }
 
 // called from within IRQ
-void USART::tx_dma_complete(void)
+void USART::tx_dma_complete(void* ptr)
 {
-	_tx_busy = false;
+	USART* uart = reinterpret_cast<USART*>(ptr);
+	uart->_tx_busy = false;
 	// if current buf ptr is the same, then no more data to send
-	if (_tx_buf_p == &_tx_buffer[_tx_buffer_start])
+	if (uart->_tx_buf_p == &uart->_tx_buffer[uart->_tx_buffer_start])
 	{
-		_tx_buffer_start = 0;
+		uart->_tx_buffer_start = 0;
 	}
 	else
 	{
 		// more data to send, send it
-		tx_start(true);
+		uart->tx_start(true);
 	}
 }
 

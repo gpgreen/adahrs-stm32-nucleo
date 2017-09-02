@@ -33,23 +33,27 @@ void WorkQueue::process(void)
 
 	if (_queue_start == queue_end)
 		return;
-	if (_queue[_queue_start])
+	WorkCallback* cb = &_queue[_queue_start++];
+	if (cb->callback != nullptr)
 	{
-		_queue[_queue_start]();
-		_queue[_queue_start++] = 0;
-		if (_queue_start == WORK_QUEUE_LENGTH)
-			_queue_start = 0;
+		cb->callback(cb->callback_data);
+		cb->callback = nullptr;
+		cb->callback_data = nullptr;
 	}
+	if (_queue_start == WORK_QUEUE_LENGTH)
+	    _queue_start = 0;
 }
 
 // this can only be called from within irq
-void WorkQueue::add_work_irq(std::function<void(void)> work_fn)
+void WorkQueue::add_work_irq(void (*work_fn)(void *), void* data)
 {
 	// for this to work, we diable irq's
 	// This is expensive, but we are only doing it when
 	// fixing the queue.
 	__disable_irq();
-	_queue[_queue_end++] = work_fn;
+	WorkCallback* cb = &_queue[_queue_end++];
+	cb->callback = work_fn;
+	cb->callback_data = data;
 	if (_queue_end == WORK_QUEUE_LENGTH)
 	{
 		_queue_end = 0;
@@ -66,7 +70,7 @@ void WorkQueue::add_work_irq(std::function<void(void)> work_fn)
 // section to ensure that no interrupts will happen while
 // the queue is manipulated. Returns 'true' if work
 // added to queue, 'false' if queue is full and not added
-bool WorkQueue::add_work(std::function<void(void)> work_fn)
+bool WorkQueue::add_work(void (*work_fn)(void *), void* data)
 {
 	// critical sections created by setting BASEPRI to a level
 	// above all irq's that could be adding work, that way it cannot be interrupted by
@@ -85,7 +89,9 @@ bool WorkQueue::add_work(std::function<void(void)> work_fn)
 	}
 	else
 	{
-		_queue[end] = work_fn;
+		WorkCallback* cb = &_queue_start[end];
+		cb->callback = work_fn;
+		cb->callback_data = data;
 		retval = true;
 	}
 	__DMB();

@@ -11,6 +11,7 @@
 // ----------------------------------------------------------------------------
 
 DMA::DMA(DMA_Channel_TypeDef* channel) :
+	_completed_fn(nullptr), _completed_fn_data(nullptr),
 	_dma_channel_p(channel), _busy(false)
 {
 	if (_dma_channel_p == DMA1_Channel1) {
@@ -94,7 +95,7 @@ void DMA::begin(uint8_t priority, uint8_t subpriority)
 	_busy = false;
 }
 
-bool DMA::start(DMA_InitTypeDef* init, std::function<void(void)> cb)
+bool DMA::start(DMA_InitTypeDef* init, void (*cb)(void *), void* data)
 {
 	if (_busy)
 		return false;
@@ -102,6 +103,7 @@ bool DMA::start(DMA_InitTypeDef* init, std::function<void(void)> cb)
 	_busy = true;
 
 	_completed_fn = cb;
+	_completed_fn_data = data;
 
 	DMA_DeInit(_dma_channel_p);
 	DMA_Init(_dma_channel_p, init);
@@ -119,8 +121,8 @@ bool DMA::start(DMA_InitTypeDef* init, std::function<void(void)> cb)
 void DMA::priv_complete_transaction()
 {
 	_busy = false;
-	if (_completed_fn)
-		_completed_fn();
+	if (_completed_fn != nullptr)
+		_completed_fn(_completed_fn_data);
 }
 
 // instantiate an object for each channel

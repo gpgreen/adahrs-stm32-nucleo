@@ -37,8 +37,9 @@ public:
 
 private:
     
+    static void tx_start_irq(void * data);
     void tx_start(bool in_irq);
-    void tx_dma_complete();
+    static void tx_dma_complete(void* data);
     void rx_dma_complete();
     void configure_nvic(uint8_t priority, uint8_t subpriority);
     

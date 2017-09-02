@@ -8,8 +8,6 @@
 #ifndef STM32_DMA_H_
 #define STM32_DMA_H_
 
-#include <functional>
-
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
 
@@ -26,7 +24,7 @@ public:
     bool is_busy() {return _busy;}
     // start a transaction with given parameters and callback
     // returns false if DMA is busy
-    bool start(DMA_InitTypeDef* init, std::function<void(void)> cb);
+    bool start(DMA_InitTypeDef* init, void (*cb)(void *), void* data);
     
     // method executed when transaction complete irq is triggered, not
     // meant to be used
@@ -39,7 +37,8 @@ private:
     const DMA& operator=(const DMA&);
 
     // members
-    std::function<void(void)> _completed_fn;
+    void (*_completed_fn)(void *);
+    void *_completed_fn_data;
     DMA_Channel_TypeDef* _dma_channel_p;
     uint32_t _dma_it_tc_flag;
     uint8_t _irqno;
