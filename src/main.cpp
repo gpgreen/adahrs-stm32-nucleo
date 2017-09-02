@@ -84,7 +84,6 @@ main(int /*argc*/, char* /*argv*/[])
     delaytimer.start();
 
     init.begin();
-    usart2.begin(115200, 2, 0);
 
     uint32_t seconds = 0;
 
