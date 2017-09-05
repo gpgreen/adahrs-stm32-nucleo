@@ -23,7 +23,7 @@ public:
     void begin(bool use_alternate, uint8_t priority, uint8_t subpriority);
 
     // send/receive some data, return false if dma's are busy
-    bool send(uint8_t* txdata, int buflen);
+    bool send(uint8_t* txdata, int buflen, void (*completed_fn)(void*), void* data);
 
     // method called by external irq handler, not meant as part
     // of public interface
@@ -47,11 +47,13 @@ private:
     DMA* _rx_dma;
     // transmit buffer members
     volatile uint8_t* _tx_buffer;
+    volatile int _buffer_len;
     uint8_t _irqno;
     volatile bool _tx_busy;
     bool _alt_func;
     uint8_t padding;
-    volatile int _buffer_len;
+    void (*_send_completion_fn)(void*);
+    void* _send_completion_data;
 };
 
 // ----------------------------------------------------------------------------

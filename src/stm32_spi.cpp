@@ -6,17 +6,17 @@
  *
  */
 
-// ----------------------------------------------------------------------------
-
 #include <string.h>
 #include "stm32_spi.h"
 #include "stm32_dma.h"
 #include "work_queue.h"
 
+// ----------------------------------------------------------------------------
+
 SPI::SPI(int device_no)
     : _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr),
-      _tx_buffer(nullptr), _tx_busy(false), _alt_func(false),
-      _buffer_len(0)
+      _tx_buffer(nullptr), _buffer_len(0), _tx_busy(false), _alt_func(false),
+      _send_completion_fn(nullptr), _send_completion_data(nullptr)
 {
     if (device_no == 1)
     {
@@ -66,11 +66,11 @@ SPI::SPI(int device_no)
 
 // ----------------------------------------------------------------------------
 
-void SPI::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
+void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*/)
 {
     _alt_func = use_alternate;
     
-    // enable the SPI pins and port numbers
+    // enable the SPI pins
     uint16_t miso_pin = 0;
     uint16_t mosi_pin = 0;
     uint16_t sck_pin = 0;
@@ -152,6 +152,7 @@ void SPI::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
        - hardware controls slave select
     */
     SPI_InitTypeDef SPI_InitStructure;
+    SPI_StructInit(&SPI_InitStructure);
 
     SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
     SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
@@ -161,14 +162,13 @@ void SPI::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     SPI_InitStructure.SPI_NSS = SPI_NSS_Hard;
     SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;
     SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
-    SPI_InitStructure.SPI_CRCPolynomial = 0U;
 
     // configure SPI
     SPI_I2S_DeInit(_spi);
     SPI_Init(_spi, &SPI_InitStructure);
 
     // configure interrupt vector
-    configure_nvic(priority, subpriority);
+//    configure_nvic(priority, subpriority);
 }
 
 void SPI::configure_nvic(uint8_t priority, uint8_t subpriority)
@@ -184,13 +184,15 @@ void SPI::configure_nvic(uint8_t priority, uint8_t subpriority)
     NVIC_Init(&NVIC_InitStructure);
 }
 
-bool SPI::send(uint8_t* txdata, int buflen)
+bool SPI::send(uint8_t* txdata, int buflen, void (*completed_fn)(void*), void* data)
 {
     if (_tx_busy)
         return false;
     
     _tx_buffer = txdata;
     _buffer_len = buflen;
+    _send_completion_fn = completed_fn;
+    _send_completion_data = data;
 
     tx_start(false);
 
@@ -246,7 +248,7 @@ void SPI::tx_start(bool in_irq)
         return;
     }
 
-    if (!_tx_dma->start(&DMA_txInit, nullptr, nullptr))
+    if (!_rx_dma->start(&DMA_rxInit, SPI::rx_dma_complete, this))
     {
         _tx_busy = false;
         if (in_irq)
@@ -255,9 +257,9 @@ void SPI::tx_start(bool in_irq)
             g_work_queue.add_work(SPI::tx_start_irq, this);
         return;
     }
-    if (!_rx_dma->start(&DMA_rxInit, SPI::rx_dma_complete, this))
+    if (!_tx_dma->start(&DMA_txInit, nullptr, nullptr))
     {
-        _tx_dma->cancel();
+        _rx_dma->cancel();
         _tx_busy = false;
         if (in_irq)
             g_work_queue.add_work_irq(SPI::tx_start_irq, this);
@@ -278,6 +280,12 @@ void SPI::rx_dma_complete(void* data)
     spi->_tx_busy = false;
     // disable SPI
     SPI_Cmd(spi->_spi, DISABLE);
+    // trigger the callback if given
+    if (spi->_send_completion_fn != nullptr) {
+        spi->_send_completion_fn(spi->_send_completion_data);
+        spi->_send_completion_fn = nullptr;
+        spi->_send_completion_data = nullptr;
+    }
 }
 
 void SPI::priv_rx_complete()

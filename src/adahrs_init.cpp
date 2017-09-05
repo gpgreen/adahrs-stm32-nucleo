@@ -8,6 +8,7 @@
 #include "adahrs_init.h"
 #include "stm32_dma.h"
 #include "stm32_usart.h"
+#include "stm32_spi.h"
 #include "work_queue.h"
 
 // ----------------------------------------------------------------------------
@@ -44,8 +45,12 @@ void ADAHRSInit::begin(void)
 
     // configure usart
     usart2.begin(115200, 2, 0);
+
+    // configure spi1 in alternate pin mode
+    spi1.begin(true, 2, 0);
     
     // configure Timer2 for work queue
+    // This is used to trigger the work queue periodically
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
     TIM_TimeBaseStructure.TIM_Period = 2000 - 1;
     TIM_TimeBaseStructure.TIM_Prescaler = 72 - 1;
@@ -54,7 +59,6 @@ void ADAHRSInit::begin(void)
     TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
 
     // Enable the TIM2 global Interrupt and set at lowest priority.
-    // This is used to tell the MCU to transmit newest state data over the UART
     NVIC_InitTypeDef NVIC_InitStructure;
     NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority =
