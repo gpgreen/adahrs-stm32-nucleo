@@ -33,8 +33,8 @@
 // which DMA's are we using
 // ----------------------------------------------------------------------------
 //#define DMA1_CHANNEL1_USED
-//#define DMA1_CHANNEL2_USED
-//#define DMA1_CHANNEL3_USED
+#define DMA1_CHANNEL2_USED
+#define DMA1_CHANNEL3_USED
 //#define DMA1_CHANNEL4_USED
 //#define DMA1_CHANNEL5_USED
 #define DMA1_CHANNEL6_USED
@@ -50,5 +50,16 @@
 
 #endif // STM32F10X_HD_VL
 
+// ----------------------------------------------------------------------------
+// which SPI's are we using
+// ----------------------------------------------------------------------------
+#define SPI1_USED
+//#define SPI2_USED
+
+#ifdef STM32F10X_HD_VL
+
+//#define SPI3_USED
+
+#endif // STM32F10X_HD_VL
 // ----------------------------------------------------------------------------
 #endif /* ADAHRS_DEFINITIONS_H_ */

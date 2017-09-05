@@ -8,7 +8,8 @@
 #ifndef ADAHRSINIT_H_
 #define ADAHRSINIT_H_
 
-#include "stm32f10x.h"
+#include "cmsis_device.h"
+#include "adahrs_definitions.h"
 
 // ----- LED definitions ------------------------------------------------------
 

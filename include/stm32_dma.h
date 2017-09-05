@@ -20,11 +20,16 @@ public:
 
     // initialize the hardware
     void begin(uint8_t priority, uint8_t subpriority);
+
     // is the DMA busy?
     bool is_busy() {return _busy;}
+
     // start a transaction with given parameters and callback
     // returns false if DMA is busy
     bool start(DMA_InitTypeDef* init, void (*cb)(void *), void* data);
+
+    // cancel an enabled transaction
+    void cancel(void);
     
     // method executed when transaction complete irq is triggered, not
     // meant to be used
@@ -40,7 +45,6 @@ private:
     void (*_completed_fn)(void *);
     void *_completed_fn_data;
     DMA_Channel_TypeDef* _dma_channel_p;
-    uint32_t _dma_it_tc_flag;
     uint8_t _irqno;
     volatile bool _busy;
     uint8_t _unused [2];

@@ -20,7 +20,7 @@ ADAHRSInit::ADAHRSInit()
 void ADAHRSInit::begin(void)
 {
     // Enable Peripheral clocks
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2 | RCC_APB1Periph_TIM2, ENABLE);
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
@@ -37,6 +37,8 @@ void ADAHRSInit::begin(void)
     GPIO_Init(LED_PORT_NUMBER, &GPIO_InitStructure);
 
     // configure DMA channels
+    DMA1Channel2.begin(2, 0);
+    DMA1Channel3.begin(2, 0);
     DMA1Channel6.begin(2, 0);
     DMA1Channel7.begin(2, 0);
 
