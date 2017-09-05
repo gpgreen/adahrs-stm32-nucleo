@@ -20,7 +20,7 @@ public:
     explicit SPI(int device_no);
 
     // initialize the SPI hardware
-    void begin(uint8_t priority, uint8_t subpriority);
+    void begin(bool use_alternate, uint8_t priority, uint8_t subpriority);
 
     // send/receive some data, return false if dma's are busy
     bool send(uint8_t* txdata, int buflen);
@@ -33,7 +33,6 @@ private:
 
     static void tx_start_irq(void * data);
     void tx_start(bool in_irq);
-    static void tx_dma_complete(void* data);
     static void rx_dma_complete(void* data);
     void configure_nvic(uint8_t priority, uint8_t subpriority);
 
@@ -50,7 +49,7 @@ private:
     volatile uint8_t* _tx_buffer;
     uint8_t _irqno;
     volatile bool _tx_busy;
-    volatile bool _rx_busy;
+    bool _alt_func;
     uint8_t padding;
     volatile int _buffer_len;
 };

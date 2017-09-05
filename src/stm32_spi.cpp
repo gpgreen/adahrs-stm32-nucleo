@@ -15,7 +15,7 @@
 
 SPI::SPI(int device_no)
     : _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr),
-      _tx_buffer(nullptr), _tx_busy(false), _rx_busy(false),
+      _tx_buffer(nullptr), _tx_busy(false), _alt_func(false),
       _buffer_len(0)
 {
     if (device_no == 1)
@@ -66,55 +66,80 @@ SPI::SPI(int device_no)
 
 // ----------------------------------------------------------------------------
 
-void SPI::begin(uint8_t priority, uint8_t subpriority)
+void SPI::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
 {
+    _alt_func = use_alternate;
+    
     // enable the SPI pins and port numbers
     uint16_t miso_pin = 0;
     uint16_t mosi_pin = 0;
     uint16_t sck_pin = 0;
     uint16_t ss_pin = 0;
-    GPIO_TypeDef* pinport = nullptr;
+    GPIO_TypeDef* dpinport = nullptr;
+    GPIO_TypeDef* spinport = nullptr;
 
     if (_devno == 1)
     {
-        ss_pin = GPIO_Pin_4;
-        sck_pin = GPIO_Pin_5;
-        miso_pin = GPIO_Pin_6;
-        mosi_pin = GPIO_Pin_7;
-        pinport = GPIOA;
+        if (!_alt_func)
+        {
+            ss_pin = GPIO_Pin_4;
+            sck_pin = GPIO_Pin_5;
+            miso_pin = GPIO_Pin_6;
+            mosi_pin = GPIO_Pin_7;
+            spinport = GPIOA;
+            dpinport = GPIOA;
+        }
+        else 
+        {
+            ss_pin = GPIO_Pin_15;
+            sck_pin = GPIO_Pin_3;
+            miso_pin = GPIO_Pin_4;
+            mosi_pin = GPIO_Pin_5;
+            spinport = GPIOA;
+            dpinport = GPIOB;
+        }
     }
     else if (_devno == 2)
     {
-        ss_pin = GPIO_Pin_12;
-        sck_pin = GPIO_Pin_13;
-        miso_pin = GPIO_Pin_14;
-        mosi_pin = GPIO_Pin_15;
-        pinport = GPIOB;
+        if (!_alt_func) {
+            ss_pin = GPIO_Pin_12;
+            sck_pin = GPIO_Pin_13;
+            miso_pin = GPIO_Pin_14;
+            mosi_pin = GPIO_Pin_15;
+            spinport = GPIOB;
+            dpinport = GPIOB;
+        }
+        else
+        {
+            while(1);
+        }
     }
 
+    // if using alternate, do the remap
+    if (_alt_func) {
+        GPIO_PinRemapConfig(GPIO_Remap_SPI1, ENABLE);
+    }
+    
     // configure the pins
     GPIO_InitTypeDef GPIO_InitStructure;
 
     // Configure SPI MISO as input, floating
     GPIO_InitStructure.GPIO_Pin = miso_pin;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
-    GPIO_Init(pinport, &GPIO_InitStructure);
+    GPIO_Init(dpinport, &GPIO_InitStructure);
 
-    // Configure SPI SCK as output, push-pull
+    // Configure SPI SCK as alternate function push-pull
     GPIO_InitStructure.GPIO_Pin = sck_pin;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-    GPIO_Init(pinport, &GPIO_InitStructure);
+    GPIO_Init(dpinport, &GPIO_InitStructure);
 
-    // Configure SPI MOSI as output, push-pull
+    // Configure SPI MOSI as alternate function push-pull
     GPIO_InitStructure.GPIO_Pin = mosi_pin;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-    GPIO_Init(pinport, &GPIO_InitStructure);
+    GPIO_Init(dpinport, &GPIO_InitStructure);
 
-    // Configure SPI SS as output, push-pull
+    // Configure SPI SS as alternate function push-pull
     GPIO_InitStructure.GPIO_Pin = ss_pin;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-    GPIO_Init(pinport, &GPIO_InitStructure);
+    GPIO_Init(spinport, &GPIO_InitStructure);
 
     /* SPI is configured as follows:
        - Both lines used for data
@@ -221,7 +246,7 @@ void SPI::tx_start(bool in_irq)
         return;
     }
 
-    if (!_tx_dma->start(&DMA_txInit, SPI::tx_dma_complete, this))
+    if (!_tx_dma->start(&DMA_txInit, nullptr, nullptr))
     {
         _tx_busy = false;
         if (in_irq)
@@ -247,23 +272,17 @@ void SPI::tx_start(bool in_irq)
     SPI_Cmd(_spi, ENABLE);
 }
 
-void SPI::tx_dma_complete(void* data)
-{
-    SPI* spi = reinterpret_cast<SPI*>(data);
-    spi->_tx_busy = false;
-}
-
 void SPI::rx_dma_complete(void* data)
 {
     SPI* spi = reinterpret_cast<SPI*>(data);
-    spi->_rx_busy = false;
+    spi->_tx_busy = false;
     // disable SPI
     SPI_Cmd(spi->_spi, DISABLE);
 }
 
 void SPI::priv_rx_complete()
 {
-    _rx_busy = false;
+    _tx_busy = false;
     // disable SPI
     SPI_Cmd(_spi, DISABLE);
 }

@@ -90,10 +90,10 @@ void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
     GPIO_Init(pinport, &GPIO_InitStructure);
 
-    // Configure USART Tx as push-pull
+    // Configure USART Tx as alternate function push-pull
     GPIO_InitStructure.GPIO_Pin = txpin;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
     GPIO_Init(pinport, &GPIO_InitStructure);
 
     /* USART1 is configured as followS:
