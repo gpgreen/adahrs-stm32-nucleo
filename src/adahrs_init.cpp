@@ -22,7 +22,7 @@ void ADAHRSInit::begin(void)
 {
     // Enable Peripheral clocks
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2 | RCC_APB1Periph_TIM2, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2 | RCC_APB1Periph_TIM2 | RCC_APB1Periph_I2C1, ENABLE);
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
     // assign all priority bits to preempt, none to subpriority
@@ -48,6 +48,9 @@ void ADAHRSInit::begin(void)
 
     // configure spi1 in alternate pin mode
     spi1.begin(true, 2, 0);
+
+    // configure i2c1
+    i2c1.begin(false, 2, 0);
     
     // configure Timer2 for work queue
     // This is used to trigger the work queue periodically
