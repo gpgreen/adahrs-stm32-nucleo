@@ -81,7 +81,7 @@ void ADXL345::get_sensor_data(uint8_t* buf)
 {
     for (int i=0; i<6; i++)
         buf[i] = _data[i];
-    _state = 5;
+    _state = 4;
 }
 /**
  * callback for i2c bus, normally called from interrupt context
@@ -130,6 +130,10 @@ void ADXL345::bus_callback(void *data)
         adxl->_bus->send_receive(ADXL_SLAVE_ADDRESS7,
                                 I2C_RECEIVE | I2C_GENERATE_STOP,
                                 adxl->_data, 6, &ADXL345::bus_callback, adxl);
+    }
+    else if (adxl->_state == 5)
+    {
+        adxl->_state = 6;
     }
 }
 

@@ -75,6 +75,9 @@ int main(int, char**);
 
 ADAHRSInit init;
 
+bool wait_for_accel_data = false;
+uint8_t accel_data[6];
+
 int
 main(int /*argc*/, char* /*argv*/[])
 {
@@ -102,7 +105,17 @@ main(int /*argc*/, char* /*argv*/[])
         delaytimer.sleep(BLINK_OFF_TICKS);
 
         //usart2.transmit("hello!", 6);
-
+        if (!wait_for_accel_data && !adxl.sensor_data_received())
+        {
+            adxl.start_get_sensor_data();
+            wait_for_accel_data = true;
+        }
+        if (wait_for_accel_data && adxl.sensor_data_received())
+        {
+            adxl.get_sensor_data(accel_data);
+            wait_for_accel_data = false;
+        }
+        
         ++seconds;
     }
 }

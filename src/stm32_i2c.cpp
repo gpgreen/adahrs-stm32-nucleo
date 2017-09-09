@@ -247,8 +247,16 @@ void I2C::dma_complete(void* data)
     I2C* i2c = reinterpret_cast<I2C*>(data);
     // disable DMA requests
     I2C_DMACmd(i2c->_i2c, DISABLE);
-    // enable i2c interrupt
-    I2C_ITConfig(i2c->_i2c, I2C_IT_EVT | I2C_IT_BUF, ENABLE);
+    // if receiving, close out
+    if ((i2c->_flags & I2C_RECEIVE) == I2C_RECEIVE)
+    {
+        i2c->priv_rx_complete();
+    }
+    // if transmitting, then enable interrupts to wait for last byte transmission
+    else
+    {
+        I2C_ITConfig(i2c->_i2c, I2C_IT_EVT | I2C_IT_BUF, ENABLE);
+    }
 }
 
 void I2C::priv_rx_complete()
@@ -284,14 +292,7 @@ void I2C1_EV_IRQHandler(void)
     // first disable interrupts
     I2C_ITConfig(I2C1, I2C_IT_EVT | I2C_IT_BUF, DISABLE);
 
-    if ((i2c1._flags & I2C_RECEIVE) == I2C_RECEIVE) {
-        // check the event
-        i2c1.wait_for_event(I2C_EVENT_MASTER_BYTE_RECEIVED);
-
-        // execute callback
-        i2c1.priv_rx_complete();
-    }
-    else
+    if ((i2c1._flags & I2C_RECEIVE) != I2C_RECEIVE)
     {
         // check the event
         i2c1.wait_for_event(I2C_EVENT_MASTER_BYTE_TRANSMITTED);
