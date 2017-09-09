@@ -50,7 +50,7 @@ I2C::I2C(int device_no)
 
 // ----------------------------------------------------------------------------
 
-void I2C::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*/)
+void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
 {
     _alt_func = use_alternate;
     
@@ -122,12 +122,12 @@ void I2C::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
     I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
     I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
 
+    // configure interrupt vector
+    configure_nvic(priority, subpriority);
+
     // configure I2C
     I2C_DeInit(_i2c);
     I2C_Init(_i2c, &I2C_InitStructure);
-
-    // configure interrupt vector
-//    configure_nvic(priority, subpriority);
 
     // enable I2C
     I2C_Cmd(_i2c, ENABLE);
@@ -135,10 +135,9 @@ void I2C::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
 
 void I2C::configure_nvic(uint8_t priority, uint8_t subpriority)
 {
-    // enable the IRQ
-    NVIC_InitTypeDef NVIC_InitStructure;
 
-    // enable the DMA Interrupt
+    // enable the Event IRQ
+    NVIC_InitTypeDef NVIC_InitStructure;
     NVIC_InitStructure.NVIC_IRQChannel = _irqno;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
     NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
@@ -188,9 +187,9 @@ void I2C::tx_start(bool in_irq)
     DMA_Init.DMA_MemoryBaseAddr = (uint32_t) _data_buffer;
     // sending or receiving
     if ((_flags & I2C_RECEIVE) == I2C_RECEIVE)
-        DMA_Init.DMA_DIR = DMA_DIR_PeripheralDST;
-    else
         DMA_Init.DMA_DIR = DMA_DIR_PeripheralSRC;
+    else
+        DMA_Init.DMA_DIR = DMA_DIR_PeripheralDST;
     DMA_Init.DMA_BufferSize = _buffer_len;
     DMA_Init.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
     DMA_Init.DMA_MemoryInc = DMA_MemoryInc_Enable;
@@ -201,7 +200,7 @@ void I2C::tx_start(bool in_irq)
     DMA_Init.DMA_M2M = DMA_M2M_Disable;
 
     // make sure we can use the DMA
-    DMA* which_dma = ((_flags & I2C_RECEIVE) == I2C_RECEIVE) ? _tx_dma : _rx_dma;
+    DMA* which_dma = ((_flags & I2C_RECEIVE) == I2C_RECEIVE) ? _rx_dma : _tx_dma;
     
     if (!which_dma->start(&DMA_Init, I2C::dma_complete, this))
     {
@@ -214,26 +213,15 @@ void I2C::tx_start(bool in_irq)
     }
 
     if ((_flags & I2C_RECEIVE) == I2C_RECEIVE) {
-        if (_buffer_len == 1)
-            I2C_AcknowledgeConfig(_i2c, DISABLE);
-        else
-            I2C_AcknowledgeConfig(_i2c, ENABLE);
         // Enable LAST bit in I2C_CR2 register so that a NACK is generated
         // on the last data read
         I2C_DMALastTransferCmd(_i2c, ENABLE);
-    }
-    else
-    {
-        // Make sure acknowledgements are enabled for read operations
-        // (these are disabled on the last byte read from a device, so they need to be re-enabled
-        // before another read can be performed)
-        I2C_AcknowledgeConfig(_i2c, ENABLE);
     }
     
     // generate start condition and wait for response
     I2C_GenerateSTART(_i2c, ENABLE);
     wait_for_event(I2C_EVENT_MASTER_MODE_SELECT);
-
+    
     // send i2c slave address
     I2C_Send7bitAddress(_i2c, _address, ((_flags & I2C_RECEIVE) == I2C_RECEIVE)
                         ? I2C_Direction_Receiver : I2C_Direction_Transmitter);
@@ -244,53 +232,72 @@ void I2C::tx_start(bool in_irq)
     {
         wait_for_event(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED);
     }
-    
+
     // i2c dma request enabled
     I2C_DMACmd(_i2c, ENABLE);
 }
 
 void I2C::wait_for_event(uint32_t event)
 {
-    while (!I2C_CheckEvent(_i2c, event));
+    while (I2C_CheckEvent(_i2c, event) != SUCCESS);
 }
 
 void I2C::dma_complete(void* data)
 {
     I2C* i2c = reinterpret_cast<I2C*>(data);
-    i2c->_tx_busy = false;
     // disable DMA requests
     I2C_DMACmd(i2c->_i2c, DISABLE);
-    // if transmitting, wait for BTF event, then STOP
-    if ((i2c->_flags & I2C_RECEIVE) != I2C_RECEIVE) {
-        i2c->wait_for_event(I2C_EVENT_MASTER_BYTE_TRANSMITTED);
-    }
-    // if receiving, check for LAST bit, then STOP
-    else {
-        i2c->wait_for_event(I2C_EVENT_MASTER_BYTE_RECEIVED);
-    }
-    if ((i2c->_flags & I2C_GENERATE_STOP) == I2C_GENERATE_STOP) {
-        I2C_GenerateSTOP(i2c->_i2c, ENABLE);
+    // enable i2c interrupt
+    I2C_ITConfig(i2c->_i2c, I2C_IT_EVT | I2C_IT_BUF, ENABLE);
+}
+
+void I2C::priv_rx_complete()
+{
+    _tx_busy = false;
+    if ((_flags & I2C_GENERATE_STOP) == I2C_GENERATE_STOP) {
+        I2C_GenerateSTOP(_i2c, ENABLE);
     }
     // trigger the callback if given
-    if (i2c->_send_completion_fn != nullptr) {
-        i2c->_send_completion_fn(i2c->_send_completion_data);
-        i2c->_send_completion_fn = nullptr;
-        i2c->_send_completion_data = nullptr;
+    if (_send_completion_fn != nullptr) {
+        _send_completion_fn(_send_completion_data);
     }
 }
 
-#if 0
-    
+void I2C::priv_tx_complete()
+{
+    _tx_busy = false;
+    if ((_flags & I2C_GENERATE_STOP) == I2C_GENERATE_STOP) {
+        I2C_GenerateSTOP(_i2c, ENABLE);
+    }
+    // trigger the callback if given
+    if (_send_completion_fn != nullptr) {
+        _send_completion_fn(_send_completion_data);
+    }
+}
+
 #ifdef I2C1_USED
 
 I2C i2c1(1);
 
-void I2C1_IRQHandler(void)
+void I2C1_EV_IRQHandler(void)
 {
-    if (I2C_I2S_GetFlagStatus(I2C1, I2C_I2S_FLAG_RXNE) != RESET) {
+    // first disable interrupts
+    I2C_ITConfig(I2C1, I2C_IT_EVT | I2C_IT_BUF, DISABLE);
+
+    if ((i2c1._flags & I2C_RECEIVE) == I2C_RECEIVE) {
+        // check the event
+        i2c1.wait_for_event(I2C_EVENT_MASTER_BYTE_RECEIVED);
+
+        // execute callback
         i2c1.priv_rx_complete();
-        // clear the RXNE bit in the SR register (not needed if data read)
-        I2C_I2S_ClearFlag(I2C1, I2C_I2S_FLAG_RXNE);
+    }
+    else
+    {
+        // check the event
+        i2c1.wait_for_event(I2C_EVENT_MASTER_BYTE_TRANSMITTED);
+        
+        // execute callback
+        i2c1.priv_tx_complete();
     }
 }
 
@@ -300,16 +307,26 @@ void I2C1_IRQHandler(void)
 
 I2C i2c2(2);
 
-void I2C2_IRQHandler(void)
+void I2C2_EV_IRQHandler(void)
 {
-    if (I2C_I2S_GetFlagStatus(I2C2, I2C_I2S_FLAG_RXNE) != RESET) {
+    // first disable interrupts
+    I2C_ITConfig(I2C2, I2C_IT_EVT | I2C_IT_BUF, DISABLE);
+
+    // if receiving, call rx complete
+    if (I2C_GetFlagStatus(I2C2, I2C_FLAG_RXNE) != RESET) {
         i2c2.priv_rx_complete();
         // clear the RXNE bit in the SR register (not needed if data read)
-        I2C_I2S_ClearFlag(I2C2, I2C_I2S_FLAG_RXNE);
+        I2C_ClearFlag(I2C2, I2C_FLAG_RXNE);
+    }
+
+    // if transmitting, call tx complete
+    if (I2C_GetFlagStatus(I2C2, I2C_FLAG_BTF) != RESET) {
+        i2c2.priv_tx_complete();
+        // clear the BTF bit in the SR register (not needed if data read)
+        I2C_ClearFlag(I2C2, I2C_FLAG_BTF);
     }
 }
 
 #endif
 
-#endif
 // ----------------------------------------------------------------------------

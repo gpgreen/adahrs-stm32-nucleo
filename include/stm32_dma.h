@@ -45,6 +45,7 @@ private:
     void (*_completed_fn)(void *);
     void *_completed_fn_data;
     DMA_Channel_TypeDef* _dma_channel_p;
+    uint32_t _flagmask;
     uint8_t _irqno;
     volatile bool _busy;
     uint8_t _unused [2];

@@ -13,9 +13,26 @@
 #include "stm32_dma.h"
 
 // ----------------------------------------------------------------------------
+// interrupt handlers
+// ----------------------------------------------------------------------------
 
-#define I2C_RECEIVE 0x00000001
-#define I2C_GENERATE_STOP 0x00000010
+#if defined(__cplusplus)
+extern "C"
+{
+#endif
+
+    void I2C1_EV_IRQHandler(void);
+
+    void I2C2_EV_IRQHandler(void);
+
+#if defined(__cplusplus)
+}
+#endif
+
+// ----------------------------------------------------------------------------
+
+#define I2C_RECEIVE                     0x00000001
+#define I2C_GENERATE_STOP               0x00000002
 
 class I2C
 {
@@ -31,11 +48,14 @@ public:
 
 private:
 
-    void wait_for_event(uint32_t event);
     static void tx_start_irq(void * data);
-    void tx_start(bool in_irq);
     static void dma_complete(void* data);
+
+    void wait_for_event(uint32_t event);
+    void tx_start(bool in_irq);
     void configure_nvic(uint8_t priority, uint8_t subpriority);
+    void priv_rx_complete();
+    void priv_tx_complete();
 
     // define away copy constructor and assignment operator
     I2C(const I2C&);
@@ -56,6 +76,9 @@ private:
     bool _alt_func;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;
+
+    friend void I2C1_EV_IRQHandler(void);
+    friend void I2C2_EV_IRQHandler(void);
 };
 
 // ----------------------------------------------------------------------------
@@ -70,24 +93,6 @@ extern I2C i2c1;
 extern I2C i2c2;
 #endif
 
-#if 0
-// ----------------------------------------------------------------------------
-// interrupt handlers
-// ----------------------------------------------------------------------------
-
-#if defined(__cplusplus)
-extern "C"
-{
-#endif
-
-    void I2C1_IRQHandler(void);
-
-    void I2C2_IRQHandler(void);
-
-#if defined(__cplusplus)
-}
-#endif
-#endif
 // ----------------------------------------------------------------------------
 
 #endif /* INCLUDE_STM32_I2C_H_ */

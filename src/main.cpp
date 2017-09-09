@@ -41,7 +41,8 @@
 #include "adahrs_init.h"
 #include "stm32_delaytimer.h"
 #include "stm32_usart.h"
-#include "stm32_dma.h"
+#include "stm32_i2c.h"
+#include "adxl345.h"
 
 // ----------------------------------------------------------------------------
 //
@@ -87,6 +88,10 @@ main(int /*argc*/, char* /*argv*/[])
 
     uint32_t seconds = 0;
 
+    // start up the accel sensor
+    ADXL345 adxl(&i2c1);
+    adxl.begin(2, 0);
+    
     // Infinite loop
     while (1)
     {
@@ -96,7 +101,7 @@ main(int /*argc*/, char* /*argv*/[])
         led_off();
         delaytimer.sleep(BLINK_OFF_TICKS);
 
-        usart2.transmit("hello!", 6);
+        //usart2.transmit("hello!", 6);
 
         ++seconds;
     }
