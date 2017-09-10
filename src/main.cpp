@@ -76,7 +76,13 @@ int main(int, char**);
 ADAHRSInit init;
 
 bool wait_for_accel_data = false;
-uint8_t accel_data[6];
+
+// adjustments for accelerometer, which axis is x,y,z
+// sign map to reverse acceleration on axis
+// bias to apply to each axis
+int16_t accel_sign_map[3] = {1, 1, 1};
+int accel_axis_map[3] = {0, 1, 2};
+int accel_bias[3] = {0, 0, 0};
 
 int
 main(int /*argc*/, char* /*argv*/[])
@@ -91,9 +97,9 @@ main(int /*argc*/, char* /*argv*/[])
 
     uint32_t seconds = 0;
 
-    // start up the accel sensor
+    // start the accel sensor
     ADXL345 adxl(&i2c1);
-    adxl.begin(2, 0);
+    adxl.begin(accel_sign_map, accel_axis_map, accel_bias, 2, 0);
     
     // Infinite loop
     while (1)
@@ -112,7 +118,7 @@ main(int /*argc*/, char* /*argv*/[])
         }
         if (wait_for_accel_data && adxl.sensor_data_received())
         {
-            adxl.get_sensor_data(accel_data);
+            adxl.get_sensor_data();
             wait_for_accel_data = false;
         }
         

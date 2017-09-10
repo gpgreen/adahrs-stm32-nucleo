@@ -12,6 +12,14 @@
 #include "work_queue.h"
 
 // ----------------------------------------------------------------------------
+// flags used to control transfers
+
+#define I2C_RECEIVE                     0x00000001
+#define I2C_GENERATE_STOP               0x00000002
+#define I2C_WAITING_FOR_ADDR            0x00000004
+#define I2C_WAITING_FOR_DMA             0x00000008
+
+// ----------------------------------------------------------------------------
 
 I2C::I2C(int device_no)
     : _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr),
@@ -145,14 +153,22 @@ void I2C::configure_nvic(uint8_t priority, uint8_t subpriority)
     NVIC_Init(&NVIC_InitStructure);
 }
 
-bool I2C::send_receive(uint8_t address, int flags, uint8_t* databuf, int buflen,
+bool I2C::send_receive(uint8_t address, I2CTransfer txfr, uint8_t* databuf, int buflen,
                        void (*completed_fn)(void*), void* data)
 {
     if (_tx_busy)
         return false;
 
+    if (txfr == TransmitNoStop)
+        _flags = 0;
+    else if (txfr == TransmitWithStop)
+        _flags = I2C_GENERATE_STOP;
+    else if (txfr == ReceiveNoStop)
+        _flags = I2C_RECEIVE;
+    else if (txfr == ReceiveWithStop)
+        _flags = I2C_RECEIVE | I2C_GENERATE_STOP;
+    
     _address = address;
-    _flags = flags;
     _data_buffer = databuf;
     _buffer_len = buflen;
     _send_completion_fn = completed_fn;
@@ -171,10 +187,15 @@ void I2C::tx_start_irq(void* data)
 
 void I2C::tx_start(bool in_irq)
 {
-    if (_tx_busy || _buffer_len <= 0)
+    // check for legal starting conditions, not busy, or busy and waiting for DMA
+    if (_buffer_len <= 0)
+        return;
+    if ((_tx_busy == true && ((_flags & I2C_WAITING_FOR_DMA) != I2C_WAITING_FOR_DMA)))
         return;
 
     _tx_busy = true;
+
+    bool receive = (_flags & I2C_RECEIVE) == I2C_RECEIVE;
 
     // Configure the DMA controller to make the transfer
     DMA_InitTypeDef DMA_Init;
@@ -186,10 +207,7 @@ void I2C::tx_start(bool in_irq)
         DMA_Init.DMA_PeripheralBaseAddr = (uint32_t) &(I2C2->DR);
     DMA_Init.DMA_MemoryBaseAddr = (uint32_t) _data_buffer;
     // sending or receiving
-    if ((_flags & I2C_RECEIVE) == I2C_RECEIVE)
-        DMA_Init.DMA_DIR = DMA_DIR_PeripheralSRC;
-    else
-        DMA_Init.DMA_DIR = DMA_DIR_PeripheralDST;
+    DMA_Init.DMA_DIR = receive ? DMA_DIR_PeripheralSRC : DMA_DIR_PeripheralDST;
     DMA_Init.DMA_BufferSize = _buffer_len;
     DMA_Init.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
     DMA_Init.DMA_MemoryInc = DMA_MemoryInc_Enable;
@@ -200,19 +218,21 @@ void I2C::tx_start(bool in_irq)
     DMA_Init.DMA_M2M = DMA_M2M_Disable;
 
     // make sure we can use the DMA
-    DMA* which_dma = ((_flags & I2C_RECEIVE) == I2C_RECEIVE) ? _rx_dma : _tx_dma;
+    DMA* which_dma = receive ? _rx_dma : _tx_dma;
     
     if (!which_dma->start(&DMA_Init, I2C::dma_complete, this))
     {
-        _tx_busy = false;
+        _flags |= I2C_WAITING_FOR_DMA;
         if (in_irq)
             g_work_queue.add_work_irq(I2C::tx_start_irq, this);
         else
             g_work_queue.add_work(I2C::tx_start_irq, this);
         return;
     }
-
-    if ((_flags & I2C_RECEIVE) == I2C_RECEIVE) {
+    _flags &= ~(I2C_WAITING_FOR_DMA);
+    
+    if (receive)
+    {
         // Enable LAST bit in I2C_CR2 register so that a NACK is generated
         // on the last data read
         I2C_DMALastTransferCmd(_i2c, ENABLE);
@@ -221,44 +241,45 @@ void I2C::tx_start(bool in_irq)
     // generate start condition and wait for response
     I2C_GenerateSTART(_i2c, ENABLE);
     wait_for_event(I2C_EVENT_MASTER_MODE_SELECT);
+
+    // set flags to wait for address
+    _flags |= I2C_WAITING_FOR_ADDR;
     
     // send i2c slave address
-    I2C_Send7bitAddress(_i2c, _address, ((_flags & I2C_RECEIVE) == I2C_RECEIVE)
-                        ? I2C_Direction_Receiver : I2C_Direction_Transmitter);
-    if ((_flags & I2C_RECEIVE) == I2C_RECEIVE) {
-        wait_for_event(I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED);
-    }
-    else
-    {
-        wait_for_event(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED);
-    }
-
-    // i2c dma request enabled
-    I2C_DMACmd(_i2c, ENABLE);
+    I2C_Send7bitAddress(_i2c, _address, receive ?
+                        I2C_Direction_Receiver : I2C_Direction_Transmitter);
+    
+    // wait for ADDR interrupt
+    I2C_ITConfig(I2C1, I2C_IT_EVT, ENABLE);
 }
 
+// helper function to endlessly loop until event is received
 void I2C::wait_for_event(uint32_t event)
 {
     while (I2C_CheckEvent(_i2c, event) != SUCCESS);
 }
 
+// called when a DMA transfer is complete
 void I2C::dma_complete(void* data)
 {
     I2C* i2c = reinterpret_cast<I2C*>(data);
+
     // disable DMA requests
     I2C_DMACmd(i2c->_i2c, DISABLE);
+
     // if receiving, close out
     if ((i2c->_flags & I2C_RECEIVE) == I2C_RECEIVE)
     {
         i2c->priv_rx_complete();
     }
-    // if transmitting, then enable interrupts to wait for last byte transmission
+    // if transmitting, then enable interrupt to wait for last byte transmission
     else
     {
         I2C_ITConfig(i2c->_i2c, I2C_IT_EVT | I2C_IT_BUF, ENABLE);
     }
 }
 
+// when all bytes have been received, this is called
 void I2C::priv_rx_complete()
 {
     _tx_busy = false;
@@ -271,6 +292,7 @@ void I2C::priv_rx_complete()
     }
 }
 
+// when all bytes have been transmitted, this is called
 void I2C::priv_tx_complete()
 {
     _tx_busy = false;
@@ -292,7 +314,22 @@ void I2C1_EV_IRQHandler(void)
     // first disable interrupts
     I2C_ITConfig(I2C1, I2C_IT_EVT | I2C_IT_BUF, DISABLE);
 
-    if ((i2c1._flags & I2C_RECEIVE) != I2C_RECEIVE)
+    // has the address been acknowledged?
+    if ((i2c1._flags & I2C_WAITING_FOR_ADDR) == I2C_WAITING_FOR_ADDR)
+    {
+        if ((i2c1._flags & I2C_RECEIVE) == I2C_RECEIVE) {
+            i2c1.wait_for_event(I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED);
+        }
+        else
+        {
+            i2c1.wait_for_event(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED);
+        }
+        // i2c dma request enabled
+        I2C_DMACmd(I2C1, ENABLE);
+        i2c1._flags &= ~(I2C_WAITING_FOR_ADDR);
+    }
+    // if not waiting for the address, then we are waiting for last byte to finish transmission
+    else if ((i2c1._flags & I2C_RECEIVE) != I2C_RECEIVE)
     {
         // check the event
         i2c1.wait_for_event(I2C_EVENT_MASTER_BYTE_TRANSMITTED);
@@ -313,18 +350,28 @@ void I2C2_EV_IRQHandler(void)
     // first disable interrupts
     I2C_ITConfig(I2C2, I2C_IT_EVT | I2C_IT_BUF, DISABLE);
 
-    // if receiving, call rx complete
-    if (I2C_GetFlagStatus(I2C2, I2C_FLAG_RXNE) != RESET) {
-        i2c2.priv_rx_complete();
-        // clear the RXNE bit in the SR register (not needed if data read)
-        I2C_ClearFlag(I2C2, I2C_FLAG_RXNE);
+    // has the address been acknowledged?
+    if ((i2c2._flags & I2C_WAITING_FOR_ADDR) == I2C_WAITING_FOR_ADDR)
+    {
+        if ((i2c2._flags & I2C_RECEIVE) == I2C_RECEIVE) {
+            i2c2.wait_for_event(I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED);
+        }
+        else
+        {
+            i2c2.wait_for_event(I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED);
+        }
+        // i2c dma request enabled
+        I2C_DMACmd(I2C2, ENABLE);
+        i2c2._flags &= ~(I2C_WAITING_FOR_ADDR);
     }
-
-    // if transmitting, call tx complete
-    if (I2C_GetFlagStatus(I2C2, I2C_FLAG_BTF) != RESET) {
+    // if not waiting for the address, then we are waiting for last byte to finish transmission
+    else if ((i2c2._flags & I2C_RECEIVE) != I2C_RECEIVE)
+    {
+        // check the event
+        i2c2.wait_for_event(I2C_EVENT_MASTER_BYTE_TRANSMITTED);
+        
+        // execute callback
         i2c2.priv_tx_complete();
-        // clear the BTF bit in the SR register (not needed if data read)
-        I2C_ClearFlag(I2C2, I2C_FLAG_BTF);
     }
 }
 

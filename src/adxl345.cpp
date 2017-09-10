@@ -6,6 +6,7 @@
  */
 
 #include "adxl345.h"
+#include "work_queue.h"
 
 // ----------------------------------------------------------------------------
 
@@ -51,13 +52,25 @@ ADXL345::ADXL345(I2C* bus)
     // does nothing else
 }
 
-void ADXL345::begin(uint8_t /*priority*/, uint8_t /*subpriority*/)
+void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
+                    uint8_t /*priority*/, uint8_t /*subpriority*/)
 {
+    _sign_map[0] = sign_map[0];
+    _sign_map[1] = sign_map[1];
+    _sign_map[2] = sign_map[2];
+    _axis_map[0] = axis_map[0];
+    _axis_map[1] = axis_map[1];
+    _axis_map[2] = axis_map[2];
+    _bias[0] = bias[0];
+    _bias[1] = bias[1];
+    _bias[2] = bias[2];
+    
     _state = 1;
     // measurement mode
     _data[0] = ADXL_POWER_CTL;
     _data[1] = 0x8;
-    _bus->send_receive(ADXL_SLAVE_ADDRESS7, I2C_GENERATE_STOP, _data, 2,
+    _bus->send_receive(ADXL_SLAVE_ADDRESS7, I2C::TransmitWithStop,
+                       _data, 2,
                        &ADXL345::bus_callback, this);
 }
 
@@ -67,7 +80,8 @@ bool ADXL345::start_get_sensor_data()
         return false;
     // set read data register to beginning of data, send that
     _data[0] = ADXL_DATAX0;
-    _bus->send_receive(ADXL_SLAVE_ADDRESS7, 0, _data, 1,
+    _bus->send_receive(ADXL_SLAVE_ADDRESS7, I2C::TransmitNoStop,
+                       _data, 1,
                        &ADXL345::bus_callback, this);
     return true;
 }
@@ -77,12 +91,24 @@ bool ADXL345::sensor_data_received()
     return _state == 6;
 }
 
-void ADXL345::get_sensor_data(uint8_t* buf)
+void ADXL345::get_sensor_data()
 {
-    for (int i=0; i<6; i++)
-        buf[i] = _data[i];
+    int x = _axis_map[0];
+    int y = _axis_map[1];
+    int z = _axis_map[2];
+    
+    // data is now in the buffer, do conversions
+    _raw_accel[0] = static_cast<uint16_t>((_data[1] << 8) | _data[0]);
+    _raw_accel[1] = static_cast<uint16_t>((_data[3] << 8) | _data[2]);
+    _raw_accel[2] = static_cast<uint16_t>((_data[5] << 8) | _data[4]);
+
+    _corrected_accel[0] = _sign_map[0] * _raw_accel[x] - _bias[x];
+    _corrected_accel[1] = _sign_map[1] * _raw_accel[y] - _bias[y];
+    _corrected_accel[2] = _sign_map[2] * _raw_accel[z] - _bias[z];
+    
     _state = 4;
 }
+
 /**
  * callback for i2c bus, normally called from interrupt context
  * state machine
@@ -96,44 +122,59 @@ void ADXL345::get_sensor_data(uint8_t* buf)
  *       -> 4
  * state 4 - completion of data read register write, start i2c for data read
  *       -> 5
+ * state 5 - completion of data read
+ *       -> 6
  */
 void ADXL345::bus_callback(void *data)
 {
     ADXL345* adxl = reinterpret_cast<ADXL345*>(data);
 
-    // TODO: this needs to check result of send_receive and push to work_queue
-    if (adxl->_state == 1) {
+    I2C::I2CTransfer txfr = I2C::TransmitWithStop;
+    int buflen = 0;
+    
+    if (adxl->_state == 1)
+    {
         // set state to 2
         adxl->_state = 2;
         // full resolution, 16g
         adxl->_data[0] = ADXL_DATA_FORMAT;
         adxl->_data[1] = 0x0b;
-        adxl->_bus->send_receive(ADXL_SLAVE_ADDRESS7, I2C_GENERATE_STOP, adxl->_data, 2,
-                                &ADXL345::bus_callback, adxl);
+        buflen = 2;
     }
-    else if (adxl->_state == 2) {
+    else if (adxl->_state == 2)
+    {
         // set state to 3
         adxl->_state = 3;
         // select 100 Hz output data rate
         adxl->_data[0] = ADXL_BW_RATE;
         adxl->_data[1] = 0x0a;
-        adxl->_bus->send_receive(ADXL_SLAVE_ADDRESS7, I2C_GENERATE_STOP, adxl->_data, 2,
-                                &ADXL345::bus_callback, adxl);
+        buflen = 2;
     }
-    else if (adxl->_state == 3) {
+    else if (adxl->_state == 3)
+    {
         // set state to 4, completed initialization
         adxl->_state = 4;
     }
-    else if (adxl->_state == 4) {
+    else if (adxl->_state == 4)
+    {
         // set state to 5, read out the data
         adxl->_state = 5;
-        adxl->_bus->send_receive(ADXL_SLAVE_ADDRESS7,
-                                I2C_RECEIVE | I2C_GENERATE_STOP,
-                                adxl->_data, 6, &ADXL345::bus_callback, adxl);
+        txfr = I2C::ReceiveWithStop;
+        buflen = 6;
     }
     else if (adxl->_state == 5)
     {
         adxl->_state = 6;
+    }
+
+    // now do the i2c if ready, put on work_queue if not
+    if (buflen != 0 &&
+        !adxl->_bus->send_receive(ADXL_SLAVE_ADDRESS7, txfr,
+                                  adxl->_data, buflen,
+                                  &ADXL345::bus_callback, adxl))
+    {
+        adxl->_state--;
+        g_work_queue.add_work_irq(&ADXL345::bus_callback, adxl);
     }
 }
 

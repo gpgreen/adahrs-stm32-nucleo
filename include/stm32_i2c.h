@@ -31,19 +31,22 @@ extern "C"
 
 // ----------------------------------------------------------------------------
 
-#define I2C_RECEIVE                     0x00000001
-#define I2C_GENERATE_STOP               0x00000002
-
 class I2C
 {
+    
 public:
+    // which kind of i2c transmission
+    enum I2CTransfer {TransmitNoStop, TransmitWithStop, ReceiveNoStop, ReceiveWithStop};
+
     explicit I2C(int device_no);
 
     // initialize the I2C hardware
     void begin(bool use_alternate, uint8_t priority, uint8_t subpriority);
 
-    // send/receive some data, return false if dma's are busy
-    bool send_receive(uint8_t address, int flags, uint8_t* databuf, int buflen,
+    // send/receive some data, return false if transmission in progress, true if transmission
+    // started or scheduled to start
+    bool send_receive(uint8_t address, I2CTransfer txfr,
+                      uint8_t* databuf, int buflen,
                       void (*completed_fn)(void*), void* data);
 
 private:
@@ -68,8 +71,8 @@ private:
     DMA* _rx_dma;
     // transmit buffer members
     volatile uint8_t* _data_buffer;
-    volatile int _buffer_len;
-    int _flags;
+    int _buffer_len;
+    volatile int _flags;
     uint8_t _address;
     uint8_t _irqno;
     volatile bool _tx_busy;

@@ -20,7 +20,8 @@ public:
     explicit ADXL345(I2C* bus);
 
     // initialize the hardware
-    void begin(uint8_t priority, uint8_t subpriority);
+    void begin(int16_t* sign_map, int* axis_map, int* bias,
+               uint8_t priority, uint8_t subpriority);
 
     // retrieve data, return false if not ready
     bool start_get_sensor_data();
@@ -28,8 +29,23 @@ public:
     // true when data has been received
     bool sensor_data_received();
 
-    // copy the retrieved data to a buffer (length = 6)
-    void get_sensor_data(uint8_t* buf);
+    // convert the retrieved data to corrected values
+    void get_sensor_data();
+
+    uint16_t get_raw_accel(int axis)
+    {
+        return _raw_accel[axis];
+    }
+
+    int get_corrected_accel(int axis)
+    {
+        return _corrected_accel[axis];
+    }
+    
+    float get_accel(int axis)
+    {
+        return static_cast<float>(_corrected_accel[axis]);
+    }
     
 private:
 
@@ -44,6 +60,11 @@ private:
     volatile int _state;
     uint8_t _data[6];
     uint8_t padding[2];
+    uint16_t _raw_accel[3];
+    int16_t _sign_map[3];
+    int _corrected_accel[3];
+    int _bias[3];
+    int _axis_map[3];
 };
 
 // ----------------------------------------------------------------------------

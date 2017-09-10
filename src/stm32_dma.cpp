@@ -14,31 +14,38 @@ DMA::DMA(DMA_Channel_TypeDef* channel) :
     _completed_fn(nullptr), _completed_fn_data(nullptr),
     _dma_channel_p(channel), _busy(false)
 {
-    if (_dma_channel_p == DMA1_Channel1) {
+    if (_dma_channel_p == DMA1_Channel1)
+    {
         _irqno = DMA1_Channel1_IRQn;
         _flagmask = DMA1_IT_TE1 | DMA1_IT_HT1 | DMA1_IT_TC1;
     }
-    else if (_dma_channel_p == DMA1_Channel2) {
+    else if (_dma_channel_p == DMA1_Channel2)
+    {
         _irqno = DMA1_Channel2_IRQn;
         _flagmask = DMA1_IT_TE2 | DMA1_IT_HT2 | DMA1_IT_TC2;
     }
-    else if (_dma_channel_p == DMA1_Channel3) {
+    else if (_dma_channel_p == DMA1_Channel3)
+    {
         _irqno = DMA1_Channel3_IRQn;
         _flagmask = DMA1_IT_TE3 | DMA1_IT_HT3 | DMA1_IT_TC3;
     }
-    else if (_dma_channel_p == DMA1_Channel4) {
+    else if (_dma_channel_p == DMA1_Channel4)
+    {
         _irqno = DMA1_Channel4_IRQn;
         _flagmask = DMA1_IT_TE4 | DMA1_IT_HT4 | DMA1_IT_TC4;
     }
-    else if (_dma_channel_p == DMA1_Channel5) {
+    else if (_dma_channel_p == DMA1_Channel5)
+    {
         _irqno = DMA1_Channel5_IRQn;
         _flagmask = DMA1_IT_TE5 | DMA1_IT_HT5 | DMA1_IT_TC5;
     }
-    else if (_dma_channel_p == DMA1_Channel6) {
+    else if (_dma_channel_p == DMA1_Channel6)
+    {
         _irqno = DMA1_Channel6_IRQn;
         _flagmask = DMA1_IT_TE6 | DMA1_IT_HT6 | DMA1_IT_TC6;
     }
-    else if (_dma_channel_p == DMA1_Channel7) {
+    else if (_dma_channel_p == DMA1_Channel7)
+    {
         _irqno = DMA1_Channel7_IRQn;
         _flagmask = DMA1_IT_TE7 | DMA1_IT_HT7 | DMA1_IT_TC7;
     }
@@ -48,27 +55,27 @@ DMA::DMA(DMA_Channel_TypeDef* channel) :
     else if (_dma_channel_p == DMA2_Channel1)
     {
         _irqno = DMA2_Channel1_IRQn;
-//        _flagmask = DMA2_Channel1_IT_Mask;
+        _flagmask = DMA2_IT_TE1 | DMA2_IT_HT1 | DMA2_IT_TC1;
     }
     else if (_dma_channel_p == DMA2_Channel2)
     {
         _irqno = DMA2_Channel2_IRQn;
-//        _flagmask = DMA2_Channel2_IT_Mask;
+        _flagmask = DMA2_IT_TE2 | DMA2_IT_HT2 | DMA2_IT_TC2;
     }
     else if (_dma_channel_p == DMA2_Channel3)
     {
         _irqno = DMA2_Channel3_IRQn;
-//        _flagmask = DMA2_Channel3_IT_Mask;
+        _flagmask = DMA2_IT_TE3 | DMA2_IT_HT3 | DMA2_IT_TC3;
     }
     else if (_dma_channel_p == DMA2_Channel4)
     {
         _irqno = DMA2_Channel4_5_IRQn;
-//        _flagmask = DMA2_Channel4_IT_Mask;
+        _flagmask = DMA2_IT_TE4 | DMA2_IT_HT4 | DMA2_IT_TC4;
     }
     else if (_dma_channel_p == DMA2_Channel5)
     {
         _irqno = DMA2_Channel4_5_IRQn;
-//        _flagmask = DMA2_Channel5_IT_Mask;
+        _flagmask = DMA2_IT_TE5 | DMA2_IT_HT5 | DMA2_IT_TC5;
     }
 
 #endif
@@ -137,51 +144,11 @@ void DMA::priv_complete_transaction()
         _completed_fn(_completed_fn_data);
 }
 
-// instantiate an object for each channel
-#ifdef DMA1_CHANNEL1_USED
-DMA DMA1Channel1(DMA1_Channel1);
-#endif
-#ifdef DMA1_CHANNEL2_USED
-DMA DMA1Channel2(DMA1_Channel2);
-#endif
-#ifdef DMA1_CHANNEL3_USED
-DMA DMA1Channel3(DMA1_Channel3);
-#endif
-#ifdef DMA1_CHANNEL4_USED
-DMA DMA1Channel4(DMA1_Channel4);
-#endif
-#ifdef DMA1_CHANNEL5_USED
-DMA DMA1Channel5(DMA1_Channel5);
-#endif
-#ifdef DMA1_CHANNEL6_USED
-DMA DMA1Channel6(DMA1_Channel6);
-#endif
-#ifdef DMA1_CHANNEL7_USED
-DMA DMA1Channel7(DMA1_Channel7);
-#endif
-
-#ifdef STM32F10X_HD_VL
-
-#ifdef DMA2_CHANNEL1_USED
-DMA DMA2Channel1(DMA2_Channel1);
-#endif
-#ifdef DMA2_CHANNEL2_USED
-DMA DMA2Channel2(DMA2_Channel2);
-#endif
-#ifdef DMA2_CHANNEL3_USED
-DMA DMA2Channel3(DMA2_Channel3);
-#endif
-#ifdef DMA2_CHANNEL4_USED
-DMA DMA2Channel4(DMA2_Channel4);
-#endif
-#ifdef DMA2_CHANNEL5_USED
-DMA DMA2Channel5(DMA2_Channel5);
-#endif
-
-#endif
-
 // ----- DMA1_Channel1_IRQHandler() ----------------------------------------------------
 #ifdef DMA1_CHANNEL1_USED
+
+DMA DMA1Channel1(DMA1_Channel1);
+
 void DMA1_Channel1_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -195,6 +162,9 @@ void DMA1_Channel1_IRQHandler( void )
 
 // ----- DMA1_Channel2_IRQHandler() ----------------------------------------------------
 #ifdef DMA1_CHANNEL2_USED
+
+DMA DMA1Channel2(DMA1_Channel2);
+
 void DMA1_Channel2_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -208,6 +178,9 @@ void DMA1_Channel2_IRQHandler( void )
 
 // ----- DMA1_Channel3_IRQHandler() ----------------------------------------------------
 #ifdef DMA1_CHANNEL3_USED
+
+DMA DMA1Channel3(DMA1_Channel3);
+
 void DMA1_Channel3_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -221,6 +194,9 @@ void DMA1_Channel3_IRQHandler( void )
 
 // ----- DMA1_Channel4_IRQHandler() ----------------------------------------------------
 #ifdef DMA1_CHANNEL4_USED
+
+DMA DMA1Channel4(DMA1_Channel4);
+
 void DMA1_Channel4_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -234,6 +210,9 @@ void DMA1_Channel4_IRQHandler( void )
 
 // ----- DMA1_Channel5_IRQHandler() ----------------------------------------------------
 #ifdef DMA1_CHANNEL5_USED
+
+DMA DMA1Channel5(DMA1_Channel5);
+
 void DMA1_Channel5_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -247,6 +226,9 @@ void DMA1_Channel5_IRQHandler( void )
 
 // ----- DMA1_Channel6_IRQHandler() ----------------------------------------------------
 #ifdef DMA1_CHANNEL6_USED
+
+DMA DMA1Channel6(DMA1_Channel6);
+
 void DMA1_Channel6_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -260,6 +242,9 @@ void DMA1_Channel6_IRQHandler(void)
 
 // ----- DMA1_Channel7_IRQHandler() ----------------------------------------------------
 #ifdef DMA1_CHANNEL7_USED
+
+DMA DMA1Channel7(DMA1_Channel7);
+
 void DMA1_Channel7_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -275,6 +260,9 @@ void DMA1_Channel7_IRQHandler(void)
 
 // ----- DMA2_Channel1_IRQHandler() ----------------------------------------------------
 #ifdef DMA2_CHANNEL1_USED
+
+DMA DMA2Channel1(DMA2_Channel1);
+
 void DMA2_Channel1_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -288,6 +276,9 @@ void DMA2_Channel1_IRQHandler( void )
 
 // ----- DMA2_Channel2_IRQHandler() ----------------------------------------------------
 #ifdef DMA2_CHANNEL2_USED
+
+DMA DMA2Channel2(DMA2_Channel2);
+
 void DMA2_Channel2_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -301,6 +292,9 @@ void DMA2_Channel2_IRQHandler( void )
 
 // ----- DMA2_Channel3_IRQHandler() ----------------------------------------------------
 #ifdef DMA2_CHANNEL3_USED
+
+DMA DMA2Channel3(DMA2_Channel3);
+
 void DMA2_Channel3_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.
@@ -312,8 +306,16 @@ void DMA2_Channel3_IRQHandler( void )
 }
 #endif
 
+#ifdef DMA2_CHANNEL4_USED
+DMA DMA2Channel4(DMA2_Channel4);
+#endif
+#ifdef DMA2_CHANNEL5_USED
+DMA DMA2Channel5(DMA2_Channel5);
+#endif
+
 // ----- DMA2_Channel4_5_IRQHandler() ----------------------------------------------------
 #ifdef DMA2_CHANNEL4_USED || defined(DMA2_CHANNEL5_USED)
+
 void DMA2_Channel4_5_IRQHandler( void )
 {
     // Indicates that the TX buffer contents have been transmitted.

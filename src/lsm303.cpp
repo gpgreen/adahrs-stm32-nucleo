@@ -6,6 +6,7 @@
  */
 
 #include "lsm303.h"
+#include "work_queue.h"
 
 // ----------------------------------------------------------------------------
 
@@ -37,7 +38,8 @@ void LSM303::begin(uint8_t /*priority*/, uint8_t /*subpriority*/)
     // normal power mode, 50Hz update rate, all channels enabled
     _data[0] = LSM_CTRL_REG1_A;
     _data[1] = 0x27;
-    _bus->send_receive(LSM_SLAVE_ADDRESS7, I2C_GENERATE_STOP, _data, 2,
+    _bus->send_receive(LSM_SLAVE_ADDRESS7, I2C::TransmitWithStop,
+                       _data, 2,
                        &LSM303::bus_callback, this);
 }
 
@@ -47,14 +49,15 @@ bool LSM303::start_get_sensor_data()
         return false;
     // set read data register to beginning of data, send that
     _data[0] = LSM_OUT_X_L | 0x80;
-    _bus->send_receive(LSM_SLAVE_ADDRESS7, 0, _data, 1,
+    _bus->send_receive(LSM_SLAVE_ADDRESS7, I2C::TransmitNoStop,
+                       _data, 1,
                        &LSM303::bus_callback, this);
     return true;
 }
 
 bool LSM303::sensor_data_received()
 {
-    return _state == 6;
+    return _state == 7;
 }
 
 void LSM303::get_sensor_data(uint8_t* buf)
@@ -78,50 +81,70 @@ void LSM303::get_sensor_data(uint8_t* buf)
  *       -> 5
  * state 5 - completion of data read register write, start i2c for data read
  *       -> 6
+ * state 6 - completion of data read
+ *       -> 7
  */
 void LSM303::bus_callback(void *data)
 {
     LSM303* lsm = reinterpret_cast<LSM303*>(data);
 
-    // TODO: this needs to check result of send_receive and push to work_queue
-    if (lsm->_state == 1) {
+    I2C::I2CTransfer txfr = I2C::TransmitWithStop;
+    int buflen = 0;
+    
+    if (lsm->_state == 1)
+    {
         // set state to 2
         lsm->_state = 2;
         // no high-pass filter, no manual reboot
         lsm->_data[0] = LSM_CTRL_REG2_A;
         lsm->_data[1] = 0x00;
-        lsm->_bus->send_receive(LSM_SLAVE_ADDRESS7, I2C_GENERATE_STOP, lsm->_data, 2,
-                                &LSM303::bus_callback, lsm);
+        buflen = 2;
     }
-    else if (lsm->_state == 2) {
+    else if (lsm->_state == 2)
+    {
         // set state to 3
         lsm->_state = 3;
         // Active-low interrupts, data ready routed to interrupt pin 1
         lsm->_data[0] = LSM_CTRL_REG3_A;
         lsm->_data[1] = 0x82;
-        lsm->_bus->send_receive(LSM_SLAVE_ADDRESS7, I2C_GENERATE_STOP, lsm->_data, 2,
-                                &LSM303::bus_callback, lsm);
+        buflen = 2;
     }
-    else if (lsm->_state == 3) {
+    else if (lsm->_state == 3)
+    {
         // set state to 4
         lsm->_state = 4;
         // 2g full-scale range
         lsm->_data[0] = LSM_CTRL_REG4_A;
         lsm->_data[1] = 0x00;
-        lsm->_bus->send_receive(LSM_SLAVE_ADDRESS7, I2C_GENERATE_STOP, lsm->_data, 2,
-                                &LSM303::bus_callback, lsm);
+        buflen = 2;
     }
-    else if (lsm->_state == 4) {
+    else if (lsm->_state == 4)
+    {
         // set state to 5, completed initialization
         lsm->_state = 5;
     }
-    else if (lsm->_state == 5) {
+    else if (lsm->_state == 5)
+    {
         // set state to 6, read out the data
         lsm->_state = 6;
-        lsm->_bus->send_receive(LSM_SLAVE_ADDRESS7,
-                                I2C_RECEIVE | I2C_GENERATE_STOP,
-                                lsm->_data, 6, &LSM303::bus_callback, lsm);
+        txfr = I2C::ReceiveWithStop;
+        buflen = 6;
     }
+    else if (lsm->_state == 6)
+    {
+        lsm->_state = 7;
+    }
+
+    // now do the i2c if ready, put on work_queue if not
+    if (buflen != 0 &&
+        !lsm->_bus->send_receive(LSM_SLAVE_ADDRESS7, txfr,
+                                 lsm->_data, buflen,
+                                 &LSM303::bus_callback, lsm))
+    {
+        lsm->_state--;
+        g_work_queue.add_work_irq(&LSM303::bus_callback, lsm);
+    }
+
 }
 
 // ----------------------------------------------------------------------------
