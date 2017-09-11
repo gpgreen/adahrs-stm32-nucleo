@@ -22,10 +22,8 @@ ADAHRSInit::ADAHRSInit()
 void ADAHRSInit::begin(void)
 {
     // Enable Peripheral clocks
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA |
-                           RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2 | RCC_APB1Periph_TIM2 | RCC_APB1Periph_I2C1, ENABLE);
-    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 
     // assign all priority bits to preempt, none to subpriority
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
@@ -40,13 +38,15 @@ void ADAHRSInit::begin(void)
     GPIO_Init(LED_PORT_NUMBER, &GPIO_InitStructure);
 
     // configure DMA channels
-    DMA1Channel2.begin(2, 0);
-    DMA1Channel3.begin(2, 0);
-    DMA1Channel6.begin(2, 0);
-    DMA1Channel7.begin(2, 0);
+    DMA1Channel2.begin(3, 0);
+    DMA1Channel3.begin(3, 0);
+    DMA1Channel4.begin(3, 0);
+    DMA1Channel5.begin(3, 0);
+    DMA1Channel6.begin(3, 0);
+    DMA1Channel7.begin(3, 0);
 
     // configure usart
-    usart2.begin(115200, 4, 0);
+    usart1.begin(115200, 4, 0);
 
     // configure spi1 in alternate pin mode
     spi1.begin(true, 3, 0);

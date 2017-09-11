@@ -68,19 +68,27 @@ void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
         txpin = GPIO_Pin_9;
         rxpin = GPIO_Pin_10;
         pinport = GPIOA;
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1
+                               | RCC_APB2Periph_GPIOA, ENABLE);
     }
     else if (_devno == 2)
     {
         txpin = GPIO_Pin_2;
         rxpin = GPIO_Pin_3;
         pinport = GPIOA;
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
     }
     else if (_devno == 3)
     {
         txpin = GPIO_Pin_10;
         rxpin = GPIO_Pin_11;
         pinport = GPIOB;
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
     }
+    // enable dma clock
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
     // configure the pins
     GPIO_InitTypeDef GPIO_InitStructure;

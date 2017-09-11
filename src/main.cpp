@@ -46,6 +46,25 @@
 
 // ----------------------------------------------------------------------------
 //
+// Hardware on chip utilization
+//
+// I2C1
+//   - DMA1 Channel6
+//   - DMA1 Channel7
+//   - PB6, PB7
+// USART1
+//   - DMA1 Channel4
+//   - DMA1 Channel5
+//   - PA9, PA10
+// TIM2
+// SPI1
+//   - DMA1 Channel2
+//   - DMA1 Channel3
+//   - PA15, PB3, PB4, PB5
+// Onboard LED
+//   - PA5
+// ----------------------------------------------------------------------------
+//
 // Standalone STM32F1 empty sample (trace via NONE).
 //
 // Trace support is enabled by adding the TRACE macro definition.
@@ -110,7 +129,7 @@ main(int /*argc*/, char* /*argv*/[])
         led_off();
         delaytimer.sleep(BLINK_OFF_TICKS);
 
-        //usart2.transmit("hello!", 6);
+        usart1.transmit("hello!\r\n", 8);
         if (!wait_for_accel_data && !adxl.sensor_data_received())
         {
             adxl.start_get_sensor_data();

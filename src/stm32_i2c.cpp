@@ -61,6 +61,9 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
 {
     _alt_func = use_alternate;
     
+    // enable dma clock
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+
     // enable the I2C pins
     uint16_t sda_pin = 0;
     uint16_t scl_pin = 0;
@@ -79,7 +82,10 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
             sda_pin = GPIO_Pin_9;
             scl_pin = GPIO_Pin_8;
             pinport = GPIOB;
+            RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
         }
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
     }
     else if (_devno == 2)
     {
@@ -92,6 +98,8 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
         {
             while(1);
         }
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C2, ENABLE);
     }
 
     // if using alternate, do the remap

@@ -25,8 +25,8 @@
 // ----------------------------------------------------------------------------
 // which USART's are we using
 // ----------------------------------------------------------------------------
-//#define USART1_USED
-#define USART2_USED
+#define USART1_USED
+//#define USART2_USED
 //#define USART3_USED
 
 // ----------------------------------------------------------------------------
@@ -35,8 +35,8 @@
 //#define DMA1_CHANNEL1_USED
 #define DMA1_CHANNEL2_USED
 #define DMA1_CHANNEL3_USED
-//#define DMA1_CHANNEL4_USED
-//#define DMA1_CHANNEL5_USED
+#define DMA1_CHANNEL4_USED
+#define DMA1_CHANNEL5_USED
 #define DMA1_CHANNEL6_USED
 #define DMA1_CHANNEL7_USED
 

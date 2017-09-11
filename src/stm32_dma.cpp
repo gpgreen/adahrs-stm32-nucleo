@@ -92,6 +92,11 @@ void DMA::begin(uint8_t priority, uint8_t subpriority)
     // enable the IRQ
     NVIC_InitTypeDef NVIC_InitStructure;
 
+#ifdef STM32F10X_HD_VL
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
+#endif
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+
     // clear DMA pending interrupts
     DMA_ClearFlag(_flagmask);
 

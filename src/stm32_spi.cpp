@@ -78,6 +78,9 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
     GPIO_TypeDef* dpinport = nullptr;
     GPIO_TypeDef* spinport = nullptr;
 
+    // enable dma clock
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+
     if (_devno == 1)
     {
         if (!_alt_func)
@@ -97,7 +100,11 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
             mosi_pin = GPIO_Pin_5;
             spinport = GPIOA;
             dpinport = GPIOB;
+            // enable portb and afio clock
+            RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
         }
+        // enable clocks
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA, ENABLE);
     }
     else if (_devno == 2)
     {
@@ -113,6 +120,9 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
         {
             while(1);
         }
+        // enable clocks
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);
     }
 
     // if using alternate, do the remap
