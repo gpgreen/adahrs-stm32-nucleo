@@ -11,6 +11,7 @@
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
 #include "stm32_dma.h"
+#include "isr_def.h"
 
 // ----------------------------------------------------------------------------
 
@@ -31,16 +32,13 @@ public:
     // get received data, returns count of data copied
     unsigned int get_received_data(uint8_t* buf, int buflen);
 
-    // method called by external irq handler, not meant as part
-    // of public interface
-    void priv_rx_complete();
-
 private:
     
     static void tx_start_irq(void * data);
     void tx_start(bool in_irq);
     static void tx_dma_complete(void* data);
     void rx_dma_complete();
+    void priv_rx_complete();
     void configure_nvic(uint8_t priority, uint8_t subpriority);
     
     // define away copy constructor and assignment operator
@@ -63,6 +61,9 @@ private:
     // receive buffer members
     volatile uint8_t _rx_buffer[RX_BUFFER_SIZE];
     volatile int _rx_buffer_start;
+
+    friend void USART1_IRQHandler(void);
+    friend void USART2_IRQHandler(void);
 };
 
 // ----------------------------------------------------------------------------
@@ -79,25 +80,6 @@ extern USART usart2;
 
 #ifdef USART3_USED
 extern USART usart3;
-#endif
-
-// ----------------------------------------------------------------------------
-// interrupt handlers
-// ----------------------------------------------------------------------------
-
-#if defined(__cplusplus)
-extern "C"
-{
-#endif
-
-void USART1_IRQHandler(void);
-
-void USART2_IRQHandler(void);
-
-void USART3_IRQHandler(void);
-
-#if defined(__cplusplus)
-}
 #endif
 
 // ----------------------------------------------------------------------------

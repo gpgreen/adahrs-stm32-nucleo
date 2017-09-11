@@ -10,6 +10,7 @@
 
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
+#include "isr_def.h"
 
 // ----------------------------------------------------------------------------
 
@@ -31,11 +32,9 @@ public:
     // cancel an enabled transaction
     void cancel(void);
     
-    // method executed when transaction complete irq is triggered, not
-    // meant to be used
-    void priv_complete_transaction();
-
 private:
+
+    void priv_complete_transaction();
 
     // define away copy constructor and assignment operator
     DMA(const DMA&);
@@ -49,6 +48,19 @@ private:
     uint8_t _irqno;
     volatile bool _busy;
     uint8_t _unused [2];
+
+    friend void DMA1_Channel1_IRQHandler(void);
+    friend void DMA1_Channel2_IRQHandler(void);
+    friend void DMA1_Channel3_IRQHandler(void);
+    friend void DMA1_Channel4_IRQHandler(void);
+    friend void DMA1_Channel5_IRQHandler(void);
+    friend void DMA1_Channel6_IRQHandler(void);
+    friend void DMA1_Channel7_IRQHandler(void);
+    friend void DMA2_Channel1_IRQHandler(void);
+    friend void DMA2_Channel2_IRQHandler(void);
+    friend void DMA2_Channel3_IRQHandler(void);
+    friend void DMA2_Channel4_5_IRQHandler(void);
+
 };
 
 // instantiate objects for each channel
@@ -92,55 +104,6 @@ extern DMA DMA2Channel4;
 extern DMA DMA2Channel5;
 #endif
 
-#endif
-
-// define the interrupt handlers
-#if defined(__cplusplus)
-extern "C"
-{
-#endif
-
-#ifdef DMA1_CHANNEL1_USED
-    void DMA1_Channel1_IRQHandler(void);
-#endif
-#ifdef DMA1_CHANNEL2_USED
-    void DMA1_Channel2_IRQHandler(void);
-#endif
-#ifdef DMA1_CHANNEL3_USED
-    void DMA1_Channel3_IRQHandler(void);
-#endif
-#ifdef DMA1_CHANNEL4_USED
-    void DMA1_Channel4_IRQHandler(void);
-#endif
-#ifdef DMA1_CHANNEL5_USED
-    void DMA1_Channel5_IRQHandler(void);
-#endif
-#ifdef DMA1_CHANNEL6_USED
-    void DMA1_Channel6_IRQHandler(void);
-#endif
-#ifdef DMA1_CHANNEL7_USED
-    void DMA1_Channel7_IRQHandler(void);
-#endif
-    
-#ifdef STM32F10X_HD_VL
-
-#ifdef DMA2_CHANNEL1_USED
-    void DMA2_Channel1_IRQHandler(void);
-#endif
-#ifdef DMA2_CHANNEL2_USED
-    void DMA2_Channel2_IRQHandler(void);
-#endif
-#ifdef DMA2_CHANNEL3_USED
-    void DMA2_Channel3_IRQHandler(void);
-#endif
-#ifdef DMA2_CHANNEL4_USED || defined(DMA2_CHANNEL5_USED)
-    void DMA2_Channel4_5_IRQHandler(void);
-#endif
-
-#endif
-
-#if defined(__cplusplus)
-}
 #endif
 
 // ----------------------------------------------------------------------------

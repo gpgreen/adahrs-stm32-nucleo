@@ -96,7 +96,7 @@ void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
     GPIO_Init(pinport, &GPIO_InitStructure);
 
-    /* USART1 is configured as followS:
+    /* USART is configured as followS:
        - BaudRate = 'baud'
        - Word Length = 8 Bits
        - One Stop Bit

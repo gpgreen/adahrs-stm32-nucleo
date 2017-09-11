@@ -42,8 +42,11 @@ private:
 private:
     I2C* _bus;
     volatile int _state;
-    uint8_t _data[6];
-    uint8_t padding[2];
+    uint8_t _data[8];
+
+    // i2c transactions
+    I2CMasterTxHeader _i2c_header;
+    I2CMasterTxSegment _i2c_segments[4];
 };
 
 // ----------------------------------------------------------------------------

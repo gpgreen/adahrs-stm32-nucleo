@@ -11,23 +11,30 @@
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
 #include "stm32_dma.h"
+#include "isr_def.h"
 
 // ----------------------------------------------------------------------------
-// interrupt handlers
-// ----------------------------------------------------------------------------
 
-#if defined(__cplusplus)
-extern "C"
+// which kind of i2c transmission
+enum I2CTransferType {TransmitNoStop, TransmitWithStop, ReceiveNoStop, ReceiveWithStop};
+
+// each segment of the transmission has one of these
+struct I2CMasterTxSegment
 {
-#endif
+    uint32_t flags;
+    uint8_t* databuf;
+    int buflen;
+    struct I2CMasterTxSegment* next;
+};
 
-    void I2C1_EV_IRQHandler(void);
-
-    void I2C2_EV_IRQHandler(void);
-
-#if defined(__cplusplus)
-}
-#endif
+struct I2CMasterTxHeader
+{
+    uint32_t clock_speed;
+    struct I2CMasterTxSegment* first;
+    uint8_t slave_address;
+    uint8_t num_txn_completed;
+    uint8_t padding[2];
+};
 
 // ----------------------------------------------------------------------------
 
@@ -35,8 +42,6 @@ class I2C
 {
     
 public:
-    // which kind of i2c transmission
-    enum I2CTransfer {TransmitNoStop, TransmitWithStop, ReceiveNoStop, ReceiveWithStop};
 
     explicit I2C(int device_no);
 
@@ -45,10 +50,12 @@ public:
 
     // send/receive some data, return false if transmission in progress, true if transmission
     // started or scheduled to start
-    bool send_receive(uint8_t address, I2CTransfer txfr,
-                      uint8_t* databuf, int buflen,
-                      void (*completed_fn)(void*), void* data);
+    bool send_receive(I2CMasterTxHeader* header, void (*completed_fn)(void*), void* data);
 
+    // setup flags in Segment based on type of transfer
+    void init_segment(I2CMasterTxSegment* segment, I2CTransferType type, uint8_t* databuffer,
+                      int bufferlen, I2CMasterTxSegment* next);
+    
 private:
 
     static void tx_start_irq(void * data);
@@ -69,14 +76,11 @@ private:
     I2C_TypeDef* _i2c;
     DMA* _tx_dma;
     DMA* _rx_dma;
-    // transmit buffer members
-    volatile uint8_t* _data_buffer;
-    int _buffer_len;
-    volatile int _flags;
-    uint8_t _address;
+    I2CMasterTxHeader* _hdr;
     uint8_t _irqno;
     volatile bool _tx_busy;
     bool _alt_func;
+    uint8_t padding;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;
 

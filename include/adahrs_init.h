@@ -10,6 +10,7 @@
 
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
+#include "isr_def.h"
 
 // ----- LED definitions ------------------------------------------------------
 
@@ -67,16 +68,6 @@ led_off(void)
   GPIO_WriteBit(LED_PORT_NUMBER, LED_PIN_NUMBER, Bit_RESET);
 #endif
 }
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
-extern void TIM2_IRQHandler(void);
-
-#if defined(__cplusplus)
-}
-#endif
 
 // ----------------------------------------------------------------------------
 #endif

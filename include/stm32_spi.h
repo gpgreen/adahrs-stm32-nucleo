@@ -11,6 +11,7 @@
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
 #include "stm32_dma.h"
+#include "isr_def.h"
 
 // ----------------------------------------------------------------------------
 
@@ -25,15 +26,12 @@ public:
     // send/receive some data, return false if dma's are busy
     bool send(uint8_t* txdata, int buflen, void (*completed_fn)(void*), void* data);
 
-    // method called by external irq handler, not meant as part
-    // of public interface
-    void priv_rx_complete();
-
 private:
 
     static void tx_start_irq(void * data);
     void tx_start(bool in_irq);
     static void rx_dma_complete(void* data);
+    void priv_rx_complete();
     void configure_nvic(uint8_t priority, uint8_t subpriority);
 
     // define away copy constructor and assignment operator
@@ -54,6 +52,9 @@ private:
     uint8_t padding;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;
+
+    friend void SPI1_IRQHandler(void);
+    friend void SPI2_IRQHandler(void);
 };
 
 // ----------------------------------------------------------------------------
@@ -75,27 +76,6 @@ extern SPI spi3;
 #endif
 
 #endif // STM32F10X_HD_VL
-
-// ----------------------------------------------------------------------------
-// interrupt handlers
-// ----------------------------------------------------------------------------
-
-#if defined(__cplusplus)
-extern "C"
-{
-#endif
-
-    void SPI1_IRQHandler(void);
-
-    void SPI2_IRQHandler(void);
-
-#ifdef STM32F10X_HD_VL
-    void SPI3_IRQHandler(void);
-#endif // STM32F10X_HD_VL
-
-#if defined(__cplusplus)
-}
-#endif
 
 // ----------------------------------------------------------------------------
 
