@@ -45,6 +45,9 @@ extern "C"
     void DMA2_Channel3_IRQHandler(void);
     void DMA2_Channel4_5_IRQHandler(void);
 
+    // EXT
+    void EXTI0_IRQHandler(void);
+    
 #if defined(__cplusplus)
 }
 #endif

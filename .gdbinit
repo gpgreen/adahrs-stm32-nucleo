@@ -21,9 +21,4 @@ end
 
 target extended-remote :4242
 load
-b DMA1_Channel6_IRQHandler
-b I2C1_EV_IRQHandler
-b I2C::tx_start
-b I2C::dma_complete
-b I2C::priv_tx_complete
-
+b ADXL345::begin

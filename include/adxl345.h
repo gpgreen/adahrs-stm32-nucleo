@@ -31,18 +31,21 @@ public:
     bool sensor_data_received();
 
     // convert the retrieved data to corrected values
-    void get_sensor_data();
+    void correct_sensor_data();
 
-    uint16_t get_raw_accel(int axis)
+    // the raw acceleration values per axis
+    int16_t get_raw_accel(int axis)
     {
         return _raw_accel[axis];
     }
 
+    // the corrected acceleration values per axis
     int get_corrected_accel(int axis)
     {
         return _corrected_accel[axis];
     }
-    
+
+    // real acceleration values per axis
     float get_accel(int axis)
     {
         return static_cast<float>(_corrected_accel[axis]);
@@ -50,6 +53,7 @@ public:
     
 private:
 
+    void second_stage_init();
     void configure_nvic(uint8_t priority, uint8_t subpriority);
     static void bus_callback(void* data);
     static void get_data_trigger(void* data);
@@ -62,8 +66,8 @@ private:
     I2C* _bus;
     volatile int _state;
     uint8_t _data[8];
-    uint16_t _raw_accel[3];
     int16_t _sign_map[3];
+    int16_t _raw_accel[3];
     int _corrected_accel[3];
     int _bias[3];
     int _axis_map[3];

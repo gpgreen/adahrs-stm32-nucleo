@@ -123,6 +123,7 @@ main(int /*argc*/, char* /*argv*/[])
 	       ADXL_IRQ_PRIORITY, 0);
     
     // Infinite loop
+    usart1.transmit("hello!\r\n", 8);
     while (1)
     {
     	led_on();
@@ -131,16 +132,10 @@ main(int /*argc*/, char* /*argv*/[])
         led_off();
         delaytimer.sleep(BLINK_OFF_TICKS);
 
-        usart1.transmit("hello!\r\n", 8);
-        if (!wait_for_accel_data && !adxl.sensor_data_received())
+        if (adxl.sensor_data_received())
         {
-            adxl.start_get_sensor_data();
-            wait_for_accel_data = true;
-        }
-        if (wait_for_accel_data && adxl.sensor_data_received())
-        {
-            adxl.get_sensor_data();
-            wait_for_accel_data = false;
+            adxl.correct_sensor_data();
+            usart1.transmit("got some!\r\n", 11);
         }
         
         ++seconds;

@@ -89,7 +89,11 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
+    // enable interrupt handler
+    configure_nvic(priority, subpriority);
+    
     // configure EXTI Line 0 as interrupt channel
+    EXTI_ClearITPendingBit(EXTI_Line0);
     EXTI_InitTypeDef EXTI_InitStructure;
     EXTI_InitStructure.EXTI_Line = EXTI_Line0;
     EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
@@ -99,9 +103,6 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
 
     // Enable external interrupt 0
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
-    
-    // enable interrupt handler
-    configure_nvic(priority, subpriority);
     
     // full resolution, 16g, interrupt ACTIVE_HIGH
     _data[0] = ADXL_DATA_FORMAT;
@@ -122,8 +123,11 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
     _bus->send_receive(&_i2c_header, &ADXL345::bus_callback, this);
 
     // now sleep for 50ms
-    while (_state != 2);        // wait for i2c transfer to complete
     delaytimer.sleep(50);
+}
+
+void ADXL345::second_stage_init()
+{
 
     // setup interrupt control registers
     
@@ -199,16 +203,16 @@ bool ADXL345::sensor_data_received()
 
 // take set of raw values retrieved from i2c, convert to corrected
 // sensor readings, reset state so we can get new data
-void ADXL345::get_sensor_data()
+void ADXL345::correct_sensor_data()
 {
     int x = _axis_map[0];
     int y = _axis_map[1];
     int z = _axis_map[2];
     
     // data is now in the buffer, do conversions
-    _raw_accel[0] = static_cast<uint16_t>((_data[1] << 8) | _data[0]);
-    _raw_accel[1] = static_cast<uint16_t>((_data[3] << 8) | _data[2]);
-    _raw_accel[2] = static_cast<uint16_t>((_data[5] << 8) | _data[4]);
+    _raw_accel[0] = static_cast<int16_t>((_data[1] << 8) | _data[0]);
+    _raw_accel[1] = static_cast<int16_t>((_data[3] << 8) | _data[2]);
+    _raw_accel[2] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
 
     _corrected_accel[0] = _sign_map[0] * _raw_accel[x] - _bias[x];
     _corrected_accel[1] = _sign_map[1] * _raw_accel[y] - _bias[y];
@@ -222,7 +226,7 @@ void ADXL345::get_sensor_data()
  * state machine
  *
  * state 0 - state at startup, transitions to 1 when begin is called
- * state 1 - completion of first set of control register setups
+ * state 1 - completion of first set of control register setups, do second stage init
  *       -> 2
  * state 2 - completion of second set of control register setups
  *       -> 10
@@ -237,6 +241,7 @@ void ADXL345::bus_callback(void *data)
     {
         // set state to 2, next set of setup
         adxl->_state = 2;
+        adxl->second_stage_init();
     }
     else if (adxl->_state == 2)
     {
