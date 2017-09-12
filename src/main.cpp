@@ -46,38 +46,41 @@
 
 // ----------------------------------------------------------------------------
 //
-// Hardware on chip utilization
+// Components and Hardware utilization
+//
+// *** Hardware ***
 //
 // I2C1
 //   - DMA1 Channel6
 //   - DMA1 Channel7
-//   - PB6, PB7
+//   - GPIO: PB6, PB7
 // USART1
 //   - DMA1 Channel4
 //   - DMA1 Channel5
-//   - PA9, PA10
-// TIM2
+//   - GPIO: PA9, PA10
 // SPI1
 //   - DMA1 Channel2
 //   - DMA1 Channel3
-//   - PA15, PB3, PB4, PB5
+//   - Remap Pins
+//   - GPIO: PA15, PB3, PB4, PB5
 // Onboard LED
-//   - PA5
+//   - GPIO: PA5
+//
+// *** Software Drivers ***
+//
+// WorkQueue (g_work_queue)
+//   - TIM2
+// ADXL345
+//   - I2C1
+//   - EXTI Line 0
+//   - GPIO: PA0
+// DelayTimer
+//   - SysTick
 // ----------------------------------------------------------------------------
-//
-// Standalone STM32F1 empty sample (trace via NONE).
-//
-// Trace support is enabled by adding the TRACE macro definition.
-// By default the trace messages are forwarded to the NONE output,
-// but can be rerouted to any device or completely suppressed, by
-// changing the definitions required in system/src/diag/trace_impl.c
-// (currently OS_USE_TRACE_ITM, OS_USE_TRACE_SEMIHOSTING_DEBUG/_STDOUT).
-//
+
 int main(int, char**);
 
 // ----- Timing definitions -------------------------------------------------
-
-#define TIMER_FREQUENCY_HZ (1000u)
 
 // Keep the LED on for 2/3 of a second.
 #define BLINK_ON_TICKS  (TIMER_FREQUENCY_HZ * 3 / 4)
@@ -99,8 +102,8 @@ bool wait_for_accel_data = false;
 // adjustments for accelerometer, which axis is x,y,z
 // sign map to reverse acceleration on axis
 // bias to apply to each axis
-int16_t accel_sign_map[3] = {1, 1, 1};
 int accel_axis_map[3] = {0, 1, 2};
+int16_t accel_sign_map[3] = {1, 1, 1};
 int accel_bias[3] = {0, 0, 0};
 
 int
@@ -108,17 +111,16 @@ main(int /*argc*/, char* /*argv*/[])
 {
     // At this stage the system clock should have already been configured
     // at high speed.
-    DelayTimer delaytimer(TIMER_FREQUENCY_HZ);
     
     delaytimer.start();
-
     init.begin();
 
     uint32_t seconds = 0;
 
     // start the accel sensor
     ADXL345 adxl(&i2c1);
-    adxl.begin(accel_sign_map, accel_axis_map, accel_bias, 2, 0);
+    adxl.begin(accel_sign_map, accel_axis_map, accel_bias,
+	       ADXL_IRQ_PRIORITY, 0);
     
     // Infinite loop
     while (1)

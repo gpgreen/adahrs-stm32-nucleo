@@ -11,6 +11,7 @@
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
 #include "stm32_i2c.h"
+#include "isr_def.h"
 
 // ----------------------------------------------------------------------------
 
@@ -49,7 +50,9 @@ public:
     
 private:
 
-    static void bus_callback(void *data);
+    void configure_nvic(uint8_t priority, uint8_t subpriority);
+    static void bus_callback(void* data);
+    static void get_data_trigger(void* data);
     
     // define away copy constructor and assignment operator
     ADXL345(const ADXL345&);
@@ -68,6 +71,8 @@ private:
     // i2c transactions
     I2CMasterTxHeader _i2c_header;
     I2CMasterTxSegment _i2c_segments[3];
+
+    friend void EXTI0_IRQHandler(void);
 };
 
 // ----------------------------------------------------------------------------

@@ -62,7 +62,7 @@ private:
     static void dma_complete(void* data);
 
     void wait_for_event(uint32_t event);
-    void tx_start(bool in_irq);
+    void tx_start();
     void configure_nvic(uint8_t priority, uint8_t subpriority);
     void priv_rx_complete();
     void priv_tx_complete();

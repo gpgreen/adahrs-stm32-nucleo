@@ -31,6 +31,8 @@ private:
     unsigned long _timer_freq_hz;
 };
 
+extern DelayTimer delaytimer;
+
 // ----------------------------------------------------------------------------
 
 #endif // STM32_DELAYTIMER_H_

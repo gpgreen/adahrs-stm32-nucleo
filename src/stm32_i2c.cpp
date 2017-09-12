@@ -22,7 +22,7 @@
 // ----------------------------------------------------------------------------
 
 I2C::I2C(int device_no)
-    : _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr),
+    : _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr), _hdr(nullptr),
       _irqno(0), _tx_busy(false), _alt_func(false),
       _send_completion_fn(nullptr), _send_completion_data(nullptr)
 {
@@ -64,6 +64,9 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     // enable dma clock
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
+    // disable the I2C if enabled
+    I2C_Cmd(_i2c, DISABLE);
+    
     // enable the I2C pins
     uint16_t sda_pin = 0;
     uint16_t scl_pin = 0;
@@ -110,14 +113,10 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     // configure the pins
     GPIO_InitTypeDef GPIO_InitStructure;
 
-    // Configure I2C SCL as alternate function open drain
-    GPIO_InitStructure.GPIO_Pin = scl_pin;
+    // Configure I2C SCL, SDA as alternate function open drain
+    GPIO_InitStructure.GPIO_Pin = scl_pin | sda_pin;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_OD;
-    GPIO_Init(pinport, &GPIO_InitStructure);
-
-    // Configure I2C SDA as alternate function open drain
-    GPIO_InitStructure.GPIO_Pin = sda_pin;
     GPIO_Init(pinport, &GPIO_InitStructure);
 
     /* I2C is configured as follows:
@@ -171,7 +170,7 @@ bool I2C::send_receive(I2CMasterTxHeader* hdr,
     _send_completion_fn = completed_fn;
     _send_completion_data = data;
 
-    tx_start(false);
+    tx_start();
 
     return true;
 }
@@ -195,10 +194,10 @@ void I2C::init_segment(I2CMasterTxSegment* segment, I2CTransferType type, uint8_
 void I2C::tx_start_irq(void* data)
 {
     I2C* i2c = reinterpret_cast<I2C*>(data);
-    i2c->tx_start(true);
+    i2c->tx_start();
 }
 
-void I2C::tx_start(bool in_irq)
+void I2C::tx_start()
 {
     // check for legal starting conditions, not busy, or busy and waiting for DMA
     if (_hdr->first == nullptr || _hdr->first->buflen <= 0)
@@ -240,10 +239,7 @@ void I2C::tx_start(bool in_irq)
     if (!which_dma->start(&DMA_Init, I2C::dma_complete, this))
     {
         seg->flags |= I2C_WAITING_FOR_DMA;
-        if (in_irq)
-            g_work_queue.add_work_irq(I2C::tx_start_irq, this);
-        else
-            g_work_queue.add_work(I2C::tx_start_irq, this);
+	g_work_queue.add_work_irq(I2C::tx_start_irq, this);
         return;
     }
     seg->flags &= ~(I2C_WAITING_FOR_DMA);
@@ -296,7 +292,7 @@ void I2C::dma_complete(void* data)
     }
 }
 
-// when all bytes have been received, this is called
+// when receive transfer is complete, this is called
 void I2C::priv_rx_complete()
 {
     _tx_busy = false;
@@ -309,7 +305,7 @@ void I2C::priv_rx_complete()
     if (_hdr->first->next != nullptr)
     {
         _hdr->first = _hdr->first->next;
-        tx_start(true);
+        tx_start();
     }
     // trigger the callback if given
     else if (_send_completion_fn != nullptr)
@@ -318,7 +314,7 @@ void I2C::priv_rx_complete()
     }
 }
 
-// when all bytes have been transmitted, this is called
+// when transmit transfer is complete, this is called
 void I2C::priv_tx_complete()
 {
     _tx_busy = false;
@@ -331,7 +327,7 @@ void I2C::priv_tx_complete()
     if (_hdr->first->next != nullptr)
     {
         _hdr->first = _hdr->first->next;
-        tx_start(true);
+        tx_start();
     }
     // trigger the callback if given
     else if (_send_completion_fn != nullptr)
@@ -352,7 +348,8 @@ void I2C1_EV_IRQHandler(void)
     // has the address been acknowledged?
     if ((i2c1._hdr->first->flags & I2C_WAITING_FOR_ADDR) == I2C_WAITING_FOR_ADDR)
     {
-        if ((i2c1._hdr->first->flags & I2C_RECEIVE) == I2C_RECEIVE) {
+        if ((i2c1._hdr->first->flags & I2C_RECEIVE) == I2C_RECEIVE)
+	{
             i2c1.wait_for_event(I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED);
         }
         else
@@ -388,7 +385,8 @@ void I2C2_EV_IRQHandler(void)
     // has the address been acknowledged?
     if ((i2c2._hdr->first->flags & I2C_WAITING_FOR_ADDR) == I2C_WAITING_FOR_ADDR)
     {
-        if ((i2c2._hdr->first->flags & I2C_RECEIVE) == I2C_RECEIVE) {
+        if ((i2c2._hdr->first->flags & I2C_RECEIVE) == I2C_RECEIVE)
+	{
             i2c2.wait_for_event(I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED);
         }
         else

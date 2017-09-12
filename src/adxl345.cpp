@@ -7,6 +7,7 @@
 
 #include "adxl345.h"
 #include "work_queue.h"
+#include "stm32_delaytimer.h"
 
 // ----------------------------------------------------------------------------
 
@@ -46,16 +47,23 @@
 
 // ----------------------------------------------------------------------------
 
+// static device pointer, used in interrupt handler, if we want
+// more than one device, need to change this
+static ADXL345* s_device_0;
+
+// ----------------------------------------------------------------------------
+
 ADXL345::ADXL345(I2C* bus)
     : _bus(bus), _state(0)
 {
     _i2c_header.clock_speed = 0;
     _i2c_header.first = &_i2c_segments[0];
     _i2c_header.slave_address = ADXL_SLAVE_ADDRESS7;
+    s_device_0 = this;
 }
 
 void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
-                    uint8_t /*priority*/, uint8_t /*subpriority*/)
+                    uint8_t priority, uint8_t subpriority)
 {
     _sign_map[0] = sign_map[0];
     _sign_map[1] = sign_map[1];
@@ -69,15 +77,65 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
 
     _state = 1;
 
-    // measurement mode
-    _data[0] = ADXL_POWER_CTL;
-    _data[1] = 0x8;
-    // full resolution, 16g
-    _data[2] = ADXL_DATA_FORMAT;
-    _data[3] = 0x0b;
+    // setup interrupt pin
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    // enable clocks
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+    
+    // Configure PA0 as input pull down
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    // configure EXTI Line 0 as interrupt channel
+    EXTI_InitTypeDef EXTI_InitStructure;
+    EXTI_InitStructure.EXTI_Line = EXTI_Line0;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStructure);
+
+    // Enable external interrupt 0
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
+    
+    // enable interrupt handler
+    configure_nvic(priority, subpriority);
+    
+    // full resolution, 16g, interrupt ACTIVE_HIGH
+    _data[0] = ADXL_DATA_FORMAT;
+    _data[1] = 0x0b;
     // select 100 Hz output data rate
-    _data[4] = ADXL_BW_RATE;
-    _data[5] = 0x0a;
+    _data[2] = ADXL_BW_RATE;
+    _data[3] = 0x0a;
+    // place in measurement mode, last
+    _data[4] = ADXL_POWER_CTL;
+    _data[5] = 0x8;
+    
+    // setup i2c transfer
+    _i2c_header.first = &_i2c_segments[0];
+    _bus->init_segment(&_i2c_segments[0], TransmitWithStop, &_data[0], 2, &_i2c_segments[1]);
+    _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 2, &_i2c_segments[2]);
+    _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
+    
+    _bus->send_receive(&_i2c_header, &ADXL345::bus_callback, this);
+
+    // now sleep for 50ms
+    while (_state != 2);        // wait for i2c transfer to complete
+    delaytimer.sleep(50);
+
+    // setup interrupt control registers
+    
+    // disable interrupts
+    _data[0] = ADXL_INT_ENABLE;
+    _data[1] = 0x00;
+    // set interrupts to pin int1
+    _data[2] = ADXL_INT_MAP;
+    _data[3] = 0x0;
+    // enable DATA_READY interrupt
+    _data[4] = ADXL_INT_ENABLE;
+    _data[5] = 0x80;
     
     // setup i2c transfer
     _i2c_header.first = &_i2c_segments[0];
@@ -88,9 +146,35 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
     _bus->send_receive(&_i2c_header, &ADXL345::bus_callback, this);
 }
 
+void ADXL345::configure_nvic(uint8_t priority, uint8_t subpriority)
+{
+    // enable the IRQ
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    // enable the DMA Interrupt
+    NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+}
+
+// static function to call start_get_sensor_data, will add to work
+// queue if not ready to go
+void ADXL345::get_data_trigger(void* data)
+{
+    ADXL345* adxl = reinterpret_cast<ADXL345*>(data);
+
+    if (!adxl->start_get_sensor_data())
+    {
+        g_work_queue.add_work_irq(ADXL345::get_data_trigger, adxl);
+    }
+}
+
+// go get new sensor data, returns false if not ready to do so
 bool ADXL345::start_get_sensor_data()
 {
-    if (_state != 2)
+    if (_state != 10)
         return false;
 
     // set read data register
@@ -106,11 +190,15 @@ bool ADXL345::start_get_sensor_data()
     return true;
 }
 
+// when data has been retrieved from i2c, then this will be true, until data
+// has been converted in get_sensor_data
 bool ADXL345::sensor_data_received()
 {
-    return _state == 3;
+    return _state == 11;
 }
 
+// take set of raw values retrieved from i2c, convert to corrected
+// sensor readings, reset state so we can get new data
 void ADXL345::get_sensor_data()
 {
     int x = _axis_map[0];
@@ -126,7 +214,7 @@ void ADXL345::get_sensor_data()
     _corrected_accel[1] = _sign_map[1] * _raw_accel[y] - _bias[y];
     _corrected_accel[2] = _sign_map[2] * _raw_accel[z] - _bias[z];
     
-    _state = 2;
+    _state = 10;
 }
 
 /**
@@ -134,10 +222,12 @@ void ADXL345::get_sensor_data()
  * state machine
  *
  * state 0 - state at startup, transitions to 1 when begin is called
- * state 1 - completion of control register setup
+ * state 1 - completion of first set of control register setups
  *       -> 2
- * state 2 - completion of data retrieval
- *       -> 3
+ * state 2 - completion of second set of control register setups
+ *       -> 10
+ * state 10 - completion of data retrieval
+ *       -> 11
  */
 void ADXL345::bus_callback(void *data)
 {
@@ -145,15 +235,35 @@ void ADXL345::bus_callback(void *data)
     
     if (adxl->_state == 1)
     {
-        // set state to 2, completed initialization
+        // set state to 2, next set of setup
         adxl->_state = 2;
     }
     else if (adxl->_state == 2)
     {
-        // set state to 3, data has been retrieved
-        adxl->_state = 3;
+        // set state to 10, completed initialization
+        adxl->_state = 10;
+    }
+    else if (adxl->_state == 10)
+    {
+        // set state to 11, data has been retrieved
+        adxl->_state = 11;
     }
 }
 
+// ----------------------------------------------------------------------------
+/**
+ * Interrupt handler for EXTI0
+ * this is triggered when accelerometer has data to read
+ */
+void EXTI0_IRQHandler(void)
+{	 
+    // Check for interrupt from accelerometer
+    if(EXTI_GetITStatus(EXTI_Line0) != RESET)
+    {		  
+        EXTI_ClearITPendingBit(EXTI_Line0);
+        ADXL345::get_data_trigger(s_device_0);
+    }
+	 
+}
 // ----------------------------------------------------------------------------
 

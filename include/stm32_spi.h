@@ -21,15 +21,16 @@ public:
     explicit SPI(int device_no);
 
     // initialize the SPI hardware
-    void begin(bool use_alternate, uint8_t priority, uint8_t subpriority);
+    void begin(bool use_alternate, bool use_hardware, void (*slave_select_fn)(bool),
+               uint8_t priority, uint8_t subpriority);
 
-    // send/receive some data, return false if dma's are busy
+    // send/receive some data, return false if spi device is busy
     bool send(uint8_t* txdata, int buflen, void (*completed_fn)(void*), void* data);
 
 private:
 
     static void tx_start_irq(void * data);
-    void tx_start(bool in_irq);
+    void tx_start();
     static void rx_dma_complete(void* data);
     void priv_rx_complete();
     void configure_nvic(uint8_t priority, uint8_t subpriority);
@@ -49,10 +50,11 @@ private:
     uint8_t _irqno;
     volatile bool _tx_busy;
     bool _alt_func;
-    uint8_t padding;
+    bool _use_ss_hardware;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;
-
+    void (*_slave_select_fn)(bool);
+    
     friend void SPI1_IRQHandler(void);
     friend void SPI2_IRQHandler(void);
 };

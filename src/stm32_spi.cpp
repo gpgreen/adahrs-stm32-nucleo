@@ -14,9 +14,11 @@
 // ----------------------------------------------------------------------------
 
 SPI::SPI(int device_no)
-    : _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr),
-      _tx_buffer(nullptr), _buffer_len(0), _tx_busy(false), _alt_func(false),
-      _send_completion_fn(nullptr), _send_completion_data(nullptr)
+    : _devno(device_no), _spi(nullptr), _tx_dma(nullptr), _rx_dma(nullptr),
+      _tx_buffer(nullptr), _buffer_len(0),
+      _tx_busy(false), _alt_func(false), _use_ss_hardware(true),
+      _send_completion_fn(nullptr), _send_completion_data(nullptr),
+      _slave_select_fn(nullptr)
 {
     if (device_no == 1)
     {
@@ -66,7 +68,9 @@ SPI::SPI(int device_no)
 
 // ----------------------------------------------------------------------------
 
-void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*/)
+void SPI::begin(bool use_alternate,
+                bool use_hardware, void (*slave_select_fn)(bool),
+                uint8_t priority, uint8_t subpriority)
 {
     _alt_func = use_alternate;
     
@@ -81,6 +85,16 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
     // enable dma clock
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
+    // disable SPI if enabled
+    SPI_Cmd(_spi, DISABLE);
+    
+    // prepare the slave select
+    _use_ss_hardware = use_hardware;
+    if (_use_ss_hardware)
+        _slave_select_fn = nullptr;
+    else
+        _slave_select_fn = slave_select_fn;
+
     if (_devno == 1)
     {
         if (!_alt_func)
@@ -91,6 +105,7 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
             mosi_pin = GPIO_Pin_7;
             spinport = GPIOA;
             dpinport = GPIOA;
+            RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
         }
         else 
         {
@@ -100,15 +115,20 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
             mosi_pin = GPIO_Pin_5;
             spinport = GPIOA;
             dpinport = GPIOB;
-            // enable portb and afio clock
-            RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
+            if (_use_ss_hardware)
+                RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOB
+                                       | RCC_APB2Periph_AFIO, ENABLE);
+            else
+                RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
+                
         }
         // enable clocks
-        RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA, ENABLE);
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);
     }
     else if (_devno == 2)
     {
-        if (!_alt_func) {
+        if (!_alt_func)
+        {
             ss_pin = GPIO_Pin_12;
             sck_pin = GPIO_Pin_13;
             miso_pin = GPIO_Pin_14;
@@ -126,7 +146,8 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
     }
 
     // if using alternate, do the remap
-    if (_alt_func) {
+    if (_alt_func)
+    {
         GPIO_PinRemapConfig(GPIO_Remap_SPI1, ENABLE);
     }
     
@@ -136,20 +157,20 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
     // Configure SPI MISO as input, floating
     GPIO_InitStructure.GPIO_Pin = miso_pin;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
-    GPIO_Init(dpinport, &GPIO_InitStructure);
-
-    // Configure SPI SCK as alternate function push-pull
-    GPIO_InitStructure.GPIO_Pin = sck_pin;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(dpinport, &GPIO_InitStructure);
 
-    // Configure SPI MOSI as alternate function push-pull
-    GPIO_InitStructure.GPIO_Pin = mosi_pin;
+    // Configure SPI SCK, MOSI as alternate function push-pull
+    GPIO_InitStructure.GPIO_Pin = sck_pin | mosi_pin;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
     GPIO_Init(dpinport, &GPIO_InitStructure);
 
-    // Configure SPI SS as alternate function push-pull
-    GPIO_InitStructure.GPIO_Pin = ss_pin;
-    GPIO_Init(spinport, &GPIO_InitStructure);
+    if (_use_ss_hardware)
+    {
+        // Configure SPI SS as alternate function push-pull
+        GPIO_InitStructure.GPIO_Pin = ss_pin;
+        GPIO_Init(spinport, &GPIO_InitStructure);
+    }
 
     /* SPI is configured as follows:
        - Both lines used for data
@@ -159,7 +180,7 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
        - CPOL low, CPHA start
        - prescalar = 4; 72/4 = 18 MHz
        - MSB bit first
-       - hardware controls slave select
+       - hardware controls slave select if _use_ss_hardware true
     */
     SPI_InitTypeDef SPI_InitStructure;
     SPI_StructInit(&SPI_InitStructure);
@@ -169,7 +190,7 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
     SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
     SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
     SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
-    SPI_InitStructure.SPI_NSS = SPI_NSS_Hard;
+    SPI_InitStructure.SPI_NSS = _use_ss_hardware ? SPI_NSS_Hard : SPI_NSS_Soft;
     SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;
     SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
 
@@ -178,7 +199,7 @@ void SPI::begin(bool use_alternate, uint8_t /*priority*/, uint8_t /*subpriority*
     SPI_Init(_spi, &SPI_InitStructure);
 
     // configure interrupt vector
-//    configure_nvic(priority, subpriority);
+    configure_nvic(priority, subpriority);
 }
 
 void SPI::configure_nvic(uint8_t priority, uint8_t subpriority)
@@ -204,7 +225,7 @@ bool SPI::send(uint8_t* txdata, int buflen, void (*completed_fn)(void*), void* d
     _send_completion_fn = completed_fn;
     _send_completion_data = data;
 
-    tx_start(false);
+    tx_start();
 
     return true;
 }
@@ -212,10 +233,10 @@ bool SPI::send(uint8_t* txdata, int buflen, void (*completed_fn)(void*), void* d
 void SPI::tx_start_irq(void* data)
 {
     SPI* spi = reinterpret_cast<SPI*>(data);
-    spi->tx_start(true);
+    spi->tx_start();
 }
 
-void SPI::tx_start(bool in_irq)
+void SPI::tx_start()
 {
     if (_tx_busy || _buffer_len <= 0)
         return;
@@ -251,32 +272,27 @@ void SPI::tx_start(bool in_irq)
     // check that BSY flag is cleared, before starting the new transmission
     if (SPI_I2S_GetFlagStatus(_spi, SPI_I2S_FLAG_BSY) != RESET) {
         _tx_busy = false;
-        if (in_irq)
-            g_work_queue.add_work_irq(SPI::tx_start_irq, this);
-        else
-            g_work_queue.add_work(SPI::tx_start_irq, this);
+	g_work_queue.add_work_irq(SPI::tx_start_irq, this);
         return;
     }
 
     if (!_rx_dma->start(&DMA_rxInit, SPI::rx_dma_complete, this))
     {
         _tx_busy = false;
-        if (in_irq)
-            g_work_queue.add_work_irq(SPI::tx_start_irq, this);
-        else
-            g_work_queue.add_work(SPI::tx_start_irq, this);
+	g_work_queue.add_work_irq(SPI::tx_start_irq, this);
         return;
     }
     if (!_tx_dma->start(&DMA_txInit, nullptr, nullptr))
     {
         _rx_dma->cancel();
         _tx_busy = false;
-        if (in_irq)
-            g_work_queue.add_work_irq(SPI::tx_start_irq, this);
-        else
-            g_work_queue.add_work(SPI::tx_start_irq, this);
+	g_work_queue.add_work_irq(SPI::tx_start_irq, this);
         return;
     }
+    // call slave-select-on if enabled
+    if (!_use_ss_hardware)
+        _slave_select_fn(true);
+    
     // spi dma tx&rx request enabled
     SPI_I2S_DMACmd(_spi, SPI_I2S_DMAReq_Tx | SPI_I2S_DMAReq_Rx, ENABLE);
 
@@ -288,13 +304,18 @@ void SPI::rx_dma_complete(void* data)
 {
     SPI* spi = reinterpret_cast<SPI*>(data);
     spi->_tx_busy = false;
+
+    // call slave-select-off if enabled
+    if (!spi->_use_ss_hardware)
+        spi->_slave_select_fn(false);
+
     // disable SPI
     SPI_Cmd(spi->_spi, DISABLE);
+
     // trigger the callback if given
-    if (spi->_send_completion_fn != nullptr) {
+    if (spi->_send_completion_fn != nullptr)
+    {
         spi->_send_completion_fn(spi->_send_completion_data);
-        spi->_send_completion_fn = nullptr;
-        spi->_send_completion_data = nullptr;
     }
 }
 
@@ -311,7 +332,8 @@ SPI spi1(1);
 
 void SPI1_IRQHandler(void)
 {
-    if (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) != RESET) {
+    if (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) != RESET)
+    {
         spi1.priv_rx_complete();
         // clear the RXNE bit in the SR register (not needed if data read)
         SPI_I2S_ClearFlag(SPI1, SPI_I2S_FLAG_RXNE);
@@ -326,7 +348,8 @@ SPI spi2(2);
 
 void SPI2_IRQHandler(void)
 {
-    if (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_RXNE) != RESET) {
+    if (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_RXNE) != RESET)
+    {
         spi2.priv_rx_complete();
         // clear the RXNE bit in the SR register (not needed if data read)
         SPI_I2S_ClearFlag(SPI2, SPI_I2S_FLAG_RXNE);
@@ -342,7 +365,8 @@ SPI spi3(3);
 
 void SPI3_IRQHandler(void)
 {
-    if (SPI_I2S_GetFlagStatus(SPI3, SPI_I2S_FLAG_RXNE) != RESET) {
+    if (SPI_I2S_GetFlagStatus(SPI3, SPI_I2S_FLAG_RXNE) != RESET)
+    {
         spi3.priv_rx_complete();
         // clear the RXNE bit in the SR register (not needed if data read)
         SPI_I2S_ClearFlag(SPI3, SPI_I2S_FLAG_RXNE);

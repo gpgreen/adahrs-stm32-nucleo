@@ -15,8 +15,8 @@
 
 struct WorkCallback
 {
-	void (*callback)(void *);
-	void* callback_data;
+    void (*callback)(void *);
+    void* callback_data;
 };
 
 class WorkQueue
@@ -24,9 +24,9 @@ class WorkQueue
 public:
     explicit WorkQueue();
 
+    void begin(uint8_t priority, uint8_t subpriority);
     void process();
     void add_work_irq(void (*work_fn)(void *), void* data);
-    bool add_work(void (*work_fn)(void *), void* data);
 
 private:
     // define away copy constructor and assignment operator

@@ -35,7 +35,7 @@ public:
 private:
     
     static void tx_start_irq(void * data);
-    void tx_start(bool in_irq);
+    void tx_start();
     static void tx_dma_complete(void* data);
     void rx_dma_complete();
     void priv_rx_complete();

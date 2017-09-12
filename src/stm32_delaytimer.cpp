@@ -7,6 +7,9 @@
 
 #include "stm32_delaytimer.h"
 #include "cortexm/ExceptionHandlers.h"
+#include "adahrs_definitions.h"
+
+DelayTimer delaytimer(TIMER_FREQUENCY_HZ);
 
 // ----------------------------------------------------------------------------
 

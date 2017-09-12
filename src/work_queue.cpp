@@ -6,7 +6,7 @@
  */
 
 #include "work_queue.h"
-#include "cortexm/ExceptionHandlers.h"
+#include "isr_def.h"
 
 // ----------------------------------------------------------------------------
 
@@ -21,9 +21,41 @@ WorkQueue::WorkQueue()
     // does nothing else
 }
 
+void WorkQueue::begin(uint8_t priority, uint8_t subpriority)
+{
+    // configure Timer2 for work queue
+    // This is used to trigger the work queue periodically
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+
+    // disable timer if enabled
+    TIM_Cmd(TIM2, DISABLE);
+    
+    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+    TIM_TimeBaseStructure.TIM_Period = 2000 - 1;
+    TIM_TimeBaseStructure.TIM_Prescaler = 72 - 1;
+    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+
+    TIM_DeInit(TIM2);
+    TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
+
+    // Enable the TIM2 global Interrupt and set at lowest priority.
+    NVIC_InitTypeDef NVIC_InitStructure;
+    NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
+    // enable the timer
+    TIM_Cmd(TIM2, ENABLE);
+    // enable the update interrupt
+    TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+}
+
 // ----------------------------------------------------------------------------
 
-// function called in SysTick to process work, this work is in a low priority
+// function called in TimerIRQ to process work, this work is a low priority
 // irq, so queue and queue_end may be changed during execution of this method
 // queue_start is only changed in this method, which is only called in the
 // work process irq, so it cannot be changed elsewhere
@@ -31,53 +63,37 @@ void WorkQueue::process(void)
 {
     uint32_t queue_end = __sync_fetch_and_add(&_queue_end, 0);
 
+    // queue is empty
     if (_queue_start == queue_end)
         return;
+
+    // get the pointer to callback and fix start of queue
     WorkCallback* cb = &_queue[_queue_start++];
+    if (_queue_start == WORK_QUEUE_LENGTH)
+        _queue_start = 0;
+
+    // execute the callback, this may call add_work_irq which would
+    // change the queue, but we are done changing the queue so it
+    // won't cause problems
     if (cb->callback != nullptr)
     {
         cb->callback(cb->callback_data);
         cb->callback = nullptr;
         cb->callback_data = nullptr;
     }
-    if (_queue_start == WORK_QUEUE_LENGTH)
-        _queue_start = 0;
 }
 
-// this can only be called from within irq
+// uses a critical section to ensure that no interrupts will happen
+// while the queue is manipulated. 
 void WorkQueue::add_work_irq(void (*work_fn)(void *), void* data)
-{
-    // for this to work, we diable irq's
-    // This is expensive, but we are only doing it when
-    // fixing the queue.
-    __disable_irq();
-    WorkCallback* cb = &_queue[_queue_end++];
-    cb->callback = work_fn;
-    cb->callback_data = data;
-    if (_queue_end == WORK_QUEUE_LENGTH)
-    {
-        _queue_end = 0;
-    }
-    if (_queue_end == _queue_start)
-    {
-        while(1);	// goto endless loop, queue is full, cannot add work
-    }
-    __DMB();
-    __enable_irq();
-}
-
-// this can only be called outside irq - it uses a critical
-// section to ensure that no interrupts will happen while
-// the queue is manipulated. Returns 'true' if work
-// added to queue, 'false' if queue is full and not added
-bool WorkQueue::add_work(void (*work_fn)(void *), void* data)
 {
     // critical sections created by setting BASEPRI to a level
     // above all irq's that could be adding work, that way it cannot be interrupted by
     // those irq
-    bool retval = false;
+
     // === START critical section
     __set_BASEPRI(WORKQUEUE_IRQ_MASKING);
+
     int end = _queue_end++;
     if (_queue_end == WORK_QUEUE_LENGTH)
     {
@@ -92,11 +108,21 @@ bool WorkQueue::add_work(void (*work_fn)(void *), void* data)
         WorkCallback* cb = &_queue[end];
         cb->callback = work_fn;
         cb->callback_data = data;
-        retval = true;
     }
+
     __DMB();
     __set_BASEPRI(0U);
     // === END critical section
-    return retval;
 }
 
+// IRQ for work queue
+void TIM2_IRQHandler(void)
+{
+    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+    {
+        // process the work queue
+        g_work_queue.process();
+        // clear pending interrupt bit
+        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+    }
+}

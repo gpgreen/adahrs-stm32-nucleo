@@ -1,5 +1,5 @@
 /*
- * stm32_dma.cpp
+ * stm32_dma.h
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
@@ -21,9 +21,6 @@ public:
 
     // initialize the hardware
     void begin(uint8_t priority, uint8_t subpriority);
-
-    // is the DMA busy?
-    bool is_busy() {return _busy;}
 
     // start a transaction with given parameters and callback
     // returns false if DMA is busy

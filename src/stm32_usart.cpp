@@ -90,6 +90,9 @@ void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
     // enable dma clock
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
+    // disable USART if enabled
+    USART_Cmd(_uart, DISABLE);
+    
     // configure the pins
     GPIO_InitTypeDef GPIO_InitStructure;
 
@@ -155,7 +158,7 @@ bool USART::transmit(const char* txdata, int len)
     for (int i = 0; i < len; ++i)
         _tx_buffer[_tx_buffer_start++] = txdata[i];
 
-    tx_start(false);
+    tx_start();
 
     return true;
 }
@@ -163,10 +166,10 @@ bool USART::transmit(const char* txdata, int len)
 void USART::tx_start_irq(void * data)
 {
     USART* usart = reinterpret_cast<USART*>(data);
-    usart->tx_start(true);
+    usart->tx_start();
 }
 
-void USART::tx_start(bool in_irq)
+void USART::tx_start()
 {
     if (_tx_busy || _tx_buffer_start == 0)
         return;
@@ -199,10 +202,7 @@ void USART::tx_start(bool in_irq)
     // check the TC bit, if low, then wait until it is high, then start the new transmission
     if (USART_GetFlagStatus(_uart, USART_FLAG_TC) == RESET) {
         _tx_busy = false;
-        if (in_irq)
-            g_work_queue.add_work_irq(USART::tx_start_irq, this);
-        else
-            g_work_queue.add_work(USART::tx_start_irq, this);
+	g_work_queue.add_work_irq(USART::tx_start_irq, this);
         return;
     }
     // usart dma tx request enabled
@@ -211,13 +211,10 @@ void USART::tx_start(bool in_irq)
     // clear the TC bit in the SR register
     USART_ClearFlag(_uart, USART_FLAG_TC);
 
-    if (!_tx_dma->start(&DMA_InitStructure, USART::tx_dma_complete, this))
+    if (!_tx_dma->start(&DMA_InitStructure, &USART::tx_dma_complete, this))
     {
         _tx_busy = false;
-        if (in_irq)
-            g_work_queue.add_work_irq(USART::tx_start_irq, this);
-        else
-            g_work_queue.add_work(USART::tx_start_irq, this);
+	g_work_queue.add_work_irq(USART::tx_start_irq, this);
     }
 }
 
@@ -258,7 +255,7 @@ void USART::tx_dma_complete(void* ptr)
     else
     {
         // more data to send, send it
-        uart->tx_start(true);
+        uart->tx_start();
     }
 }
 

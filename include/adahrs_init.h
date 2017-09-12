@@ -34,6 +34,8 @@ public:
     void begin();
 
 private:
+    void configure_led();
+    
     // define away copy constructor and assignment operator
     ADAHRSInit(const ADAHRSInit&);
     const ADAHRSInit& operator=(const ADAHRSInit&);
