@@ -21,7 +21,7 @@ public:
     explicit ITG3200(I2C* bus);
 
     // initialize the hardware
-    void begin(int16_t* sign_map, int* axis_map, int* bias,
+    void begin(int16_t* sign_map, int* axis_map,
                uint8_t priority, uint8_t subpriority);
 
     // retrieve data, return false if not ready
@@ -31,25 +31,23 @@ public:
     bool sensor_data_received();
 
     // convert the retrieved data to corrected values
-    void get_sensor_data();
+    void correct_sensor_data();
 
-    uint16_t get_raw_gyros(int axis)
+    int16_t get_raw_gyros(int axis)
     {
         return _raw_gyro[axis];
     }
 
-    int get_corrected_gyros(int axis)
+    int get_corrected_gyro(int axis)
     {
         return _corrected_gyro[axis];
     }
     
-    float get_gyro(int axis)
-    {
-        return static_cast<float>(_corrected_gyro[axis]);
-    }
-    
 private:
 
+    void configure_nvic(uint8_t priority, uint8_t subpriority);
+    void second_stage_init();
+    static void get_data_trigger(void* data);
     static void bus_callback(void *data);
     
     // define away copy constructor and assignment operator
@@ -60,15 +58,16 @@ private:
     I2C* _bus;
     volatile int _state;
     uint8_t _data[8];
-    uint16_t _raw_gyro[3];
+    int16_t _raw_gyro[3];
     int16_t _sign_map[3];
     int _corrected_gyro[3];
-    int _bias[3];
     int _axis_map[3];
 
     // i2c transactions
     I2CMasterTxHeader _i2c_header;
-    I2CMasterTxSegment _i2c_segments[3];
+    I2CMasterTxSegment _i2c_segments[2];
+
+    friend void EXTI1_IRQHandler(void);
 };
 
 // ----------------------------------------------------------------------------

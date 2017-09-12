@@ -7,7 +7,7 @@
 
 #include "adahrs_config.h"
 
-// start of flash bank defined in linker script
+// start of flash block defined in linker script
 extern uint32_t __flashb1_start__;
 
 // variables to start of region(s) in flash block
@@ -22,6 +22,7 @@ static uint32_t s_flash_start_address;
 
 ADAHRSConfig::ADAHRSConfig()
 {
+	// initialize static variables from linker script variable
     s_flash_start_address = __flashb1_start__;
     s_factory_start_address = __flashb1_start__ + 2048;
 }

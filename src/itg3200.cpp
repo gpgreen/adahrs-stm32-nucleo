@@ -9,10 +9,14 @@
 ------------------------------------------------------------------------------ */ 
 
 #include "itg3200.h"
+#include "stm32_delaytimer.h"
 #include "work_queue.h"
 
+// ----------------------------------------------------------------------------
 #define	ITG_SLAVE_ADDRESS7	        0xD0
+// ----------------------------------------------------------------------------
 
+// ----------------------------------------------------------------------------
 // Register addresses for the ITG3200
 #define	ITG_REG_WHOAMI			0x0
 #define	ITG_REG_SMPLRT_DIV	        0x15
@@ -31,16 +35,23 @@
 
 // ----------------------------------------------------------------------------
 
+// static device pointer, used in interrupt handler, if we want
+// more than one device, need to change this
+static ITG3200* s_device_0;
+
+// ----------------------------------------------------------------------------
+
 ITG3200::ITG3200(I2C* bus)
     : _bus(bus), _state(0)
 {
     _i2c_header.clock_speed = 0;
     _i2c_header.first = &_i2c_segments[0];
     _i2c_header.slave_address = ITG_SLAVE_ADDRESS7;
+    s_device_0 = this;
 }
 
-void ITG3200::begin(int16_t* sign_map, int* axis_map, int* bias,
-                    uint8_t /*priority*/, uint8_t /*subpriority*/)
+void ITG3200::begin(int16_t* sign_map, int* axis_map,
+                    uint8_t priority, uint8_t subpriority)
 {
     _sign_map[0] = sign_map[0];
     _sign_map[1] = sign_map[1];
@@ -48,34 +59,100 @@ void ITG3200::begin(int16_t* sign_map, int* axis_map, int* bias,
     _axis_map[0] = axis_map[0];
     _axis_map[1] = axis_map[1];
     _axis_map[2] = axis_map[2];
-    _bias[0] = bias[0];
-    _bias[1] = bias[1];
-    _bias[2] = bias[2];
 
     _state = 1;
 
+    // setup interrupt pin
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    // enable clocks
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+    
+    // Configure PA1 as input pull down
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    // enable interrupt handler
+    configure_nvic(priority, subpriority);
+    
+    // configure EXTI Line 1 as interrupt channel
+    EXTI_ClearITPendingBit(EXTI_Line1);
+    EXTI_InitTypeDef EXTI_InitStructure;
+    EXTI_InitStructure.EXTI_Line = EXTI_Line1;
+    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
+    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&EXTI_InitStructure);
+
+    // Enable external interrupt 1
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource1);
+    
     // device reset
     _data[0] = ITG_REG_PWR_MGMT;
     _data[1] = 0x80;
-    // full resolution, 16g
-    //_data[2] = ADXL_DATA_FORMAT;
-    //_data[3] = 0x0b;
-    // select 100 Hz output data rate
-    //_data[4] = ADXL_BW_RATE;
-    //_data[5] = 0x0a;
     
     // setup i2c transfer
     _i2c_header.first = &_i2c_segments[0];
+    _bus->init_segment(&_i2c_segments[0], TransmitWithStop, &_data[0], 2, nullptr);
+    
+    _bus->send_receive(&_i2c_header, &ITG3200::bus_callback, this);
+
+    // delay for 100ms
+    delaytimer.sleep(100);
+}
+
+void ITG3200::configure_nvic(uint8_t priority, uint8_t subpriority)
+{
+    // enable the IRQ
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    // enable the DMA Interrupt
+    NVIC_InitStructure.NVIC_IRQChannel = EXTI1_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+}
+
+void ITG3200::second_stage_init()
+{
+    // select x gyro clock source
+    _data[0] = ITG_REG_PWR_MGMT;
+    _data[1] = 0x01;
+    // auto-incrementing registers
+    _data[2] = ITG_REG_SMPLRT_DIV;
+    _data[3] = 0x07;     // sample rate division is 7+1 = 125Hz, 8ms per sample
+    _data[4] = 0x1a;     // ITG_REG_DLPF_FS, FS_SEL=3 (2000deg/s),
+                         //   DLPF_CFG=2, 98Hz band pass, 1kHz internal sample rate
+    _data[5] = 0x11;     // ACTIVE_HIGH, DRIVE PUSH-PULL, ITG_REG_INT_CFG, RAW_RDY_EN,
+                         //   INT_ANYRD_2CLEAR
+
+    // setup i2c transfer
+    _i2c_header.first = &_i2c_segments[0];
     _bus->init_segment(&_i2c_segments[0], TransmitWithStop, &_data[0], 2, &_i2c_segments[1]);
-    _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 2, &_i2c_segments[2]);
-    _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
+    _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 3, nullptr);
     
     _bus->send_receive(&_i2c_header, &ITG3200::bus_callback, this);
 }
 
+// static function to call start_get_sensor_data, will add to work
+// queue if not ready to go
+void ITG3200::get_data_trigger(void* data)
+{
+    ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
+
+    if (!gyro->start_get_sensor_data())
+    {
+        g_work_queue.add_work_irq(ITG3200::get_data_trigger, gyro);
+    }
+}
+
+// go get new sensor data, returns false if not ready to do so
 bool ITG3200::start_get_sensor_data()
 {
-    if (_state != 2)
+    if (_state != 10)
         return false;
 
     // set read data register
@@ -93,25 +170,25 @@ bool ITG3200::start_get_sensor_data()
 
 bool ITG3200::sensor_data_received()
 {
-    return _state == 3;
+    return _state == 11;
 }
 
-void ITG3200::get_sensor_data()
+void ITG3200::correct_sensor_data()
 {
     int x = _axis_map[0];
     int y = _axis_map[1];
     int z = _axis_map[2];
     
     // data is now in the buffer, do conversions
-    _raw_gyro[0] = static_cast<uint16_t>((_data[1] << 8) | _data[0]);
-    _raw_gyro[1] = static_cast<uint16_t>((_data[3] << 8) | _data[2]);
-    _raw_gyro[2] = static_cast<uint16_t>((_data[5] << 8) | _data[4]);
+    _raw_gyro[0] = static_cast<int16_t>((_data[1] << 8) | _data[0]);
+    _raw_gyro[1] = static_cast<int16_t>((_data[3] << 8) | _data[2]);
+    _raw_gyro[2] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
 
-    _corrected_gyro[0] = _sign_map[0] * _raw_gyro[x] - _bias[x];
-    _corrected_gyro[1] = _sign_map[1] * _raw_gyro[y] - _bias[y];
-    _corrected_gyro[2] = _sign_map[2] * _raw_gyro[z] - _bias[z];
+    _corrected_gyro[0] = _sign_map[0] * _raw_gyro[x];
+    _corrected_gyro[1] = _sign_map[1] * _raw_gyro[y];
+    _corrected_gyro[2] = _sign_map[2] * _raw_gyro[z];
     
-    _state = 2;
+    _state = 10;
 }
 
 /**
@@ -126,72 +203,42 @@ void ITG3200::get_sensor_data()
  */
 void ITG3200::bus_callback(void *data)
 {
-    ITG3200* adxl = reinterpret_cast<ITG3200*>(data);
+    ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
     
-    if (adxl->_state == 1)
+    if (gyro->_state == 1)
     {
-        // set state to 2, completed initialization
-        adxl->_state = 2;
+        // set state to 2, do second stage of initialization
+        gyro->_state = 2;
+        gyro->second_stage_init();
     }
-    else if (adxl->_state == 2)
+    else if (gyro->_state == 2)
     {
-        // set state to 3, data has been retrieved
-        adxl->_state = 3;
+        // set state to 20, initialization complete
+        gyro->_state = 10;
+    }
+    else if (gyro->_state == 10)
+    {
+        // set state to 11, data has been retrieved
+        gyro->_state = 11;
     }
 }
 
 // ----------------------------------------------------------------------------
 
-#if 0
-/*******************************************************************************
-* Function Name  : initializeITG
-* Input          : None
-* Output         : uint8_t* status_flag
-* Return         : 0 if success, 1 if fail
-* Description    : Initializes the ITG3400 rate gyro
-						 
-*******************************************************************************/
-int32_t initializeITG( uint8_t* status_flag )
-{
-    uint8_t txBuf[4];
-
-    // per the datasheet, to use SPI, do the following sequence:
-    //  1 set DEVICE_RESET
-    //  2 wait 100ms
-    //  3 set GYRO_RST = TEMP_RST = 1
-    //  4 wait 100ms
-    txBuf[0] = 0x80;
-    spi_write( ITG_REG_PWR_MGMT, txBuf, 1 );
-
-    DelayMs( 100 );
-
-    txBuf[0] = 0x5;
-    spi_write( ITG_REG_SIGNAL_PATH_RESET, txBuf, 1 );
-
-    DelayMs( 100 );
-
-    // make sure i2c is disabled
-    txBuf[0] = 0x10;            /* i2c slave module reset */
-    txBuf[1] = 0x1;             /* auto select the best clock */
-    spi_write( ITG_REG_USER_CTRL, txBuf, 2 );
-    
-    txBuf[0] = 0x00;     // No sample rate division (update registers with most recent data as often as possible)
-    txBuf[1] = 0x4;      // FIFO_MODE=0, FSYNC-disabled Internal LPF at 20 Hz
-    txBuf[2] = 0x8;      // +/- 500 deg/s full-scale range
-
-    return spi_write( ITG_REG_SMPLRT_DIV, txBuf, 3 );
-
+/**
+ * Interrupt handler for EXTI1
+ * this is triggered when gyros have data to read
+ */
+void EXTI1_IRQHandler(void)
+{	 
+    // Check for interrupt from accelerometer
+    if(EXTI_GetITStatus(EXTI_Line1) != RESET)
+    {		  
+        EXTI_ClearITPendingBit(EXTI_Line1);
+        ITG3200::get_data_trigger(s_device_0);
+    }
+	 
 }
 
-/*******************************************************************************
-* Function Name  : getITGData
-* Input          : None
-* Output         : uint8_t* i2cBuf
-* Return         : 0 if success, 1 if fail
-* Description    : 
-*******************************************************************************/
-int32_t getITGData( )
-{
-    return spi_read( ITG_REG_TEMP_OUT_H, g_spiRxBuf, 8 );
-}
-#endif
+// ----------------------------------------------------------------------------
+

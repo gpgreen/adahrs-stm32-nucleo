@@ -24,7 +24,7 @@
 // with the sensor needs only specify the register address, and the
 // communication software running on the sensor knows exactly where to
 // find it - it needn't know what the data is.  The software
-// communicatin with the sensor, on the other hand, needs to know what
+// communicating with the sensor, on the other hand, needs to know what
 // it is asking for (naturally...)  This setup makes it easy to make
 // more data immediately available when needed - simply increase the
 // array size, add code in the firmware that writes data to the new
@@ -94,26 +94,26 @@
 #define	UM6_MAG_CAL_21			(CONFIG_REG_START_ADDRESS + 42)
 #define	UM6_MAG_CAL_22			(CONFIG_REG_START_ADDRESS + 43)
 
-#define   UM6_GYROX_BIAS_0              (CONFIG_REG_START_ADDRESS + 44)         // Terms used for gyro temperature compensation.  Each item is a floating point number, to be
-#define   UM6_GYROX_BIAS_1              (CONFIG_REG_START_ADDRESS + 45)         // applied to the raw data directly.
-#define   UM6_GYROX_BIAS_2              (CONFIG_REG_START_ADDRESS + 46)
-#define   UM6_GYROX_BIAS_3              (CONFIG_REG_START_ADDRESS + 47)
-#define   UM6_GYROY_BIAS_0              (CONFIG_REG_START_ADDRESS + 48)
-#define   UM6_GYROY_BIAS_1              (CONFIG_REG_START_ADDRESS + 49)
-#define   UM6_GYROY_BIAS_2              (CONFIG_REG_START_ADDRESS + 50)
-#define   UM6_GYROY_BIAS_3              (CONFIG_REG_START_ADDRESS + 51)
-#define   UM6_GYROZ_BIAS_0              (CONFIG_REG_START_ADDRESS + 52)
-#define   UM6_GYROZ_BIAS_1              (CONFIG_REG_START_ADDRESS + 53)
-#define   UM6_GYROZ_BIAS_2              (CONFIG_REG_START_ADDRESS + 54)
-#define   UM6_GYROZ_BIAS_3              (CONFIG_REG_START_ADDRESS + 55)
-#define	  UM6_GPS_HOME_LAT		(CONFIG_REG_START_ADDRESS + 56)
-#define	  UM6_GPS_HOME_LONG		(CONFIG_REG_START_ADDRESS + 57)
-#define   UM6_GPS_HOME_ALTITUDE		(CONFIG_REG_START_ADDRESS + 58)
-#define   UM6_EXT_MAG_X	                (CONFIG_REG_START_ADDRESS + 59) // external magnetic sensor value x
-#define   UM6_EXT_MAG_Y                 (CONFIG_REG_START_ADDRESS + 60) // external magnetic sensor value y
-#define   UM6_EXT_MAG_Z	                (CONFIG_REG_START_ADDRESS + 61) // external magnetic sensor value z
-#define   UM6_NODE_ID	                (CONFIG_REG_START_ADDRESS + 62) // CANAerospace Node Id
-#define   UM6_EQUIPMENT                 (CONFIG_REG_START_ADDRESS + 63) // equipment installed and enabled
+#define UM6_GYROX_BIAS_0                (CONFIG_REG_START_ADDRESS + 44)         // Terms used for gyro temperature compensation.  Each item is a floating point number, to be
+#define UM6_GYROX_BIAS_1                (CONFIG_REG_START_ADDRESS + 45)         // applied to the raw data directly.
+#define UM6_GYROX_BIAS_2                (CONFIG_REG_START_ADDRESS + 46)
+#define UM6_GYROX_BIAS_3                (CONFIG_REG_START_ADDRESS + 47)
+#define UM6_GYROY_BIAS_0                (CONFIG_REG_START_ADDRESS + 48)
+#define UM6_GYROY_BIAS_1                (CONFIG_REG_START_ADDRESS + 49)
+#define UM6_GYROY_BIAS_2                (CONFIG_REG_START_ADDRESS + 50)
+#define UM6_GYROY_BIAS_3                (CONFIG_REG_START_ADDRESS + 51)
+#define UM6_GYROZ_BIAS_0                (CONFIG_REG_START_ADDRESS + 52)
+#define UM6_GYROZ_BIAS_1                (CONFIG_REG_START_ADDRESS + 53)
+#define UM6_GYROZ_BIAS_2                (CONFIG_REG_START_ADDRESS + 54)
+#define UM6_GYROZ_BIAS_3                (CONFIG_REG_START_ADDRESS + 55)
+#define	UM6_GPS_HOME_LAT		(CONFIG_REG_START_ADDRESS + 56)
+#define	UM6_GPS_HOME_LONG		(CONFIG_REG_START_ADDRESS + 57)
+#define UM6_GPS_HOME_ALTITUDE		(CONFIG_REG_START_ADDRESS + 58)
+#define UM6_EXT_MAG_X	                (CONFIG_REG_START_ADDRESS + 59) // external magnetic sensor value x
+#define UM6_EXT_MAG_Y                   (CONFIG_REG_START_ADDRESS + 60) // external magnetic sensor value y
+#define UM6_EXT_MAG_Z	                (CONFIG_REG_START_ADDRESS + 61) // external magnetic sensor value z
+#define UM6_NODE_ID	                (CONFIG_REG_START_ADDRESS + 62) // CANAerospace Node Id
+#define UM6_EQUIPMENT                   (CONFIG_REG_START_ADDRESS + 63) // equipment installed and enabled
 
 // Now for data register locations.  In the communication protocol,
 // data registers are labeled with number ranging from 128 to 255.
@@ -218,7 +218,7 @@
 
 // Now make even more definitions for writing data to specific
 // registers Start with the UM6_COMMUNICATION register.  These
-// definitions specify what individual bits in the regist mean
+// definitions specify what individual bits in the register mean
 #define	UM6_BROADCAST_ENABLED		(1 << 30)	// Enable serial data transmission
 #define	UM6_GYROS_RAW_ENABLED		(1 << 29)	// Enable transmission of raw gyro data
 #define	UM6_ACCELS_RAW_ENABLED		(1 << 28)	// Enable transmission of raw accelerometer data
