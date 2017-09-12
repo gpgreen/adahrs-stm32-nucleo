@@ -7,19 +7,23 @@
 
 #include "adahrs_config.h"
 
-// Start address for writing configuration to FLASH
-#define	FLASH_START_ADDRESS	        (uint32_t)0x0800F000
-// Start address for factory FLASH configuration
-#define	FACTORY_FLASH_ADDRESS	        (uint32_t)0x0800E000
+// start of flash bank defined in linker script
+extern uint32_t __flashb1_start__;
+
+// variables to start of region(s) in flash block
+static uint32_t s_factory_start_address;
+static uint32_t s_flash_start_address;
 
 // Macro for determining whether FLASH has been initialized
-#define	FGET_FLASH_UNINITIALIZED()	((uint32_t)( *(__IO uint32_t*)(FLASH_START_ADDRESS) ) == 0xFFFFFFFF)
-#define	FGET_FACTORY_UNINITIALIZED()	((uint32_t)( *(__IO uint32_t*)(FACTORY_FLASH_ADDRESS) ) == 0xFFFFFFFF)
+#define	FGET_FLASH_UNINITIALIZED()	((uint32_t)( *(__IO uint32_t*)(s_flash_start_address) ) == 0xFFFFFFFF)
+#define	FGET_FACTORY_UNINITIALIZED()	((uint32_t)( *(__IO uint32_t*)(s_factory_start_address) ) == 0xFFFFFFFF)
 
 // ----------------------------------------------------------------------------
 
 ADAHRSConfig::ADAHRSConfig()
 {
+    s_flash_start_address = __flashb1_start__;
+    s_factory_start_address = __flashb1_start__ + 2048;
 }
 
 // ----------------------------------------------------------------------------
@@ -44,11 +48,11 @@ int ADAHRSConfig::write_config_to_flash(int write_location_flag)
     uint32_t flash_start_address;
     if (write_location_flag == UM6_USE_CONFIG_ADDRESS)
     {
-        flash_start_address = FLASH_START_ADDRESS;
+        flash_start_address = s_flash_start_address;
     }
     else
     {
-        flash_start_address = FACTORY_FLASH_ADDRESS;
+        flash_start_address = s_factory_start_address;
     }
 
     FLASH_Unlock();
@@ -106,11 +110,11 @@ void ADAHRSConfig::load_config_from_flash(int flash_address_flag)
     uint32_t flash_start_address;
     if (flash_address_flag == UM6_USE_CONFIG_ADDRESS)
     {
-        flash_start_address = FLASH_START_ADDRESS;
+        flash_start_address = s_flash_start_address;
     }
     else
     {
-        flash_start_address = FACTORY_FLASH_ADDRESS;
+        flash_start_address = s_factory_start_address;
     }
 
     for (int i=0; i<CONFIG_ARRAY_SIZE; ++i)

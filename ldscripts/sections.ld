@@ -351,6 +351,7 @@ SECTIONS
      */
     .b1text : ALIGN(4)
     {
+        __flashb1_start__ = .;       /* create symbol for start of section */
         *(.b1text)                   /* remaining code */
         *(.b1rodata)                 /* read-only data (constants) */
         *(.b1rodata.*)
