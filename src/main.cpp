@@ -43,6 +43,7 @@
 #include "stm32_usart.h"
 #include "stm32_i2c.h"
 #include "adxl345.h"
+#include "itg3200.h"
 
 // ----------------------------------------------------------------------------
 //
@@ -105,10 +106,8 @@ bool wait_for_accel_data = false;
 
 // adjustments for accelerometer, which axis is x,y,z
 // sign map to reverse acceleration on axis
-// bias to apply to each axis
 int accel_axis_map[3] = {0, 1, 2};
 int16_t accel_sign_map[3] = {1, 1, 1};
-int accel_bias[3] = {0, 0, 0};
 
 int
 main(int /*argc*/, char* /*argv*/[])
@@ -122,10 +121,13 @@ main(int /*argc*/, char* /*argv*/[])
     uint32_t seconds = 0;
 
     // start the accel sensor
-    ADXL345 adxl(&i2c1);
-    adxl.begin(accel_sign_map, accel_axis_map, accel_bias,
-	       ADXL_IRQ_PRIORITY, 0);
+//    ADXL345 adxl(&i2c1);
+//    adxl.begin(accel_sign_map, accel_axis_map, ADXL_IRQ_PRIORITY, 0);
     
+    // start the gyro sensor
+    ITG3200 gyro(&i2c1);
+    gyro.begin(accel_sign_map, accel_axis_map, ITG_IRQ_PRIORITY, 0);
+
     // Infinite loop
     usart1.transmit("hello!\r\n", 8);
     while (1)
@@ -135,13 +137,18 @@ main(int /*argc*/, char* /*argv*/[])
 
         led_off();
         delaytimer.sleep(BLINK_OFF_TICKS);
-
+#if 0
         if (adxl.sensor_data_received())
         {
             adxl.correct_sensor_data();
             usart1.transmit("got some!\r\n", 11);
         }
-        
+#endif
+        if (gyro.sensor_data_received())
+        {
+        	gyro.correct_sensor_data();
+        	usart1.transmit("got more!\r\n", 11);
+        }
         ++seconds;
     }
 }

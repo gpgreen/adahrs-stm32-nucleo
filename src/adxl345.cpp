@@ -62,7 +62,7 @@ ADXL345::ADXL345(I2C* bus)
     s_device_0 = this;
 }
 
-void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
+void ADXL345::begin(int16_t* sign_map, int* axis_map,
                     uint8_t priority, uint8_t subpriority)
 {
     _sign_map[0] = sign_map[0];
@@ -71,9 +71,6 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map, int* bias,
     _axis_map[0] = axis_map[0];
     _axis_map[1] = axis_map[1];
     _axis_map[2] = axis_map[2];
-    _bias[0] = bias[0];
-    _bias[1] = bias[1];
-    _bias[2] = bias[2];
 
     _state = 1;
 
@@ -214,9 +211,9 @@ void ADXL345::correct_sensor_data()
     _raw_accel[1] = static_cast<int16_t>((_data[3] << 8) | _data[2]);
     _raw_accel[2] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
 
-    _corrected_accel[0] = _sign_map[0] * _raw_accel[x] - _bias[x];
-    _corrected_accel[1] = _sign_map[1] * _raw_accel[y] - _bias[y];
-    _corrected_accel[2] = _sign_map[2] * _raw_accel[z] - _bias[z];
+    _corrected_accel[0] = _sign_map[0] * _raw_accel[x];
+    _corrected_accel[1] = _sign_map[1] * _raw_accel[y];
+    _corrected_accel[2] = _sign_map[2] * _raw_accel[z];
     
     _state = 10;
 }

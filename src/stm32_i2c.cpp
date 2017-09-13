@@ -295,12 +295,12 @@ void I2C::dma_complete(void* data)
 // when receive transfer is complete, this is called
 void I2C::priv_rx_complete()
 {
-    _tx_busy = false;
     if ((_hdr->first->flags & I2C_GENERATE_STOP) == I2C_GENERATE_STOP)
     {
         I2C_GenerateSTOP(_i2c, ENABLE);
     }
     _hdr->num_txn_completed++;
+    _tx_busy = false;
     // advance the segment if there is more
     if (_hdr->first->next != nullptr)
     {
@@ -317,12 +317,12 @@ void I2C::priv_rx_complete()
 // when transmit transfer is complete, this is called
 void I2C::priv_tx_complete()
 {
-    _tx_busy = false;
     if ((_hdr->first->flags & I2C_GENERATE_STOP) == I2C_GENERATE_STOP)
     {
         I2C_GenerateSTOP(_i2c, ENABLE);
     }
     _hdr->num_txn_completed++;
+    _tx_busy = false;
     // advance the segment if there is more
     if (_hdr->first->next != nullptr)
     {

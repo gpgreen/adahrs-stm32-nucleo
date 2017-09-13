@@ -21,4 +21,7 @@ end
 
 target extended-remote :4242
 load
-b ADXL345::begin
+b ITG3200::bus_callback
+b I2C::dma_complete
+b I2C::priv_rx_complete
+b I2C::priv_tx_complete

@@ -21,7 +21,7 @@ public:
     explicit ADXL345(I2C* bus);
 
     // initialize the hardware
-    void begin(int16_t* sign_map, int* axis_map, int* bias,
+    void begin(int16_t* sign_map, int* axis_map,
                uint8_t priority, uint8_t subpriority);
 
     // retrieve data, return false if not ready
@@ -69,7 +69,6 @@ private:
     int16_t _sign_map[3];
     int16_t _raw_accel[3];
     int _corrected_accel[3];
-    int _bias[3];
     int _axis_map[3];
 
     // i2c transactions

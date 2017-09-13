@@ -88,19 +88,8 @@ void ITG3200::begin(int16_t* sign_map, int* axis_map,
 
     // Enable external interrupt 1
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource1);
-    
-    // device reset
-    _data[0] = ITG_REG_PWR_MGMT;
-    _data[1] = 0x80;
-    
-    // setup i2c transfer
-    _i2c_header.first = &_i2c_segments[0];
-    _bus->init_segment(&_i2c_segments[0], TransmitWithStop, &_data[0], 2, nullptr);
-    
-    _bus->send_receive(&_i2c_header, &ITG3200::bus_callback, this);
 
-    // delay for 100ms
-    delaytimer.sleep(100);
+    first_stage_init(this);
 }
 
 void ITG3200::configure_nvic(uint8_t priority, uint8_t subpriority)
@@ -116,25 +105,56 @@ void ITG3200::configure_nvic(uint8_t priority, uint8_t subpriority)
     NVIC_Init(&NVIC_InitStructure);
 }
 
-void ITG3200::second_stage_init()
+void ITG3200::first_stage_init(void* data)
 {
+    ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
+
+    // device reset
+    gyro->_data[0] = ITG_REG_PWR_MGMT;
+    gyro->_data[1] = 0x80;
+    
+    // setup i2c transfer
+    gyro->_i2c_header.first = &(gyro->_i2c_segments[0]);
+    gyro->_bus->init_segment(&(gyro->_i2c_segments[0]), TransmitWithStop,
+                             &(gyro->_data[0]), 2, nullptr);
+
+    if (!gyro->_bus->send_receive(&(gyro->_i2c_header), ITG3200::bus_callback, gyro))
+    {
+        g_work_queue.add_work_irq(ITG3200::first_stage_init, gyro);
+    }
+    else
+    {
+        // delay for 100ms
+        delaytimer.sleep(100);
+    }
+}
+
+void ITG3200::second_stage_init(void* data)
+{
+    ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
+
     // select x gyro clock source
-    _data[0] = ITG_REG_PWR_MGMT;
-    _data[1] = 0x01;
+    gyro->_data[0] = ITG_REG_PWR_MGMT;
+    gyro->_data[1] = 0x01;
     // auto-incrementing registers
-    _data[2] = ITG_REG_SMPLRT_DIV;
-    _data[3] = 0x07;     // sample rate division is 7+1 = 125Hz, 8ms per sample
-    _data[4] = 0x1a;     // ITG_REG_DLPF_FS, FS_SEL=3 (2000deg/s),
-                         //   DLPF_CFG=2, 98Hz band pass, 1kHz internal sample rate
-    _data[5] = 0x11;     // ACTIVE_HIGH, DRIVE PUSH-PULL, ITG_REG_INT_CFG, RAW_RDY_EN,
-                         //   INT_ANYRD_2CLEAR
+    gyro->_data[2] = ITG_REG_SMPLRT_DIV;
+    gyro->_data[3] = 0x07;     // sample rate division is 7+1 = 125Hz, 8ms per sample
+    gyro->_data[4] = 0x1a;     // ITG_REG_DLPF_FS, FS_SEL=3 (2000deg/s),
+                               //   DLPF_CFG=2, 98Hz band pass, 1kHz internal sample rate
+    gyro->_data[5] = 0x11;     // ACTIVE_HIGH, DRIVE PUSH-PULL, ITG_REG_INT_CFG, RAW_RDY_EN,
+                               //   INT_ANYRD_2CLEAR
 
     // setup i2c transfer
-    _i2c_header.first = &_i2c_segments[0];
-    _bus->init_segment(&_i2c_segments[0], TransmitWithStop, &_data[0], 2, &_i2c_segments[1]);
-    _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 3, nullptr);
+    gyro->_i2c_header.first = &(gyro->_i2c_segments[0]);
+    gyro->_bus->init_segment(&(gyro->_i2c_segments[0]), TransmitWithStop,
+                             &(gyro->_data[0]), 2, &(gyro->_i2c_segments[1]));
+    gyro->_bus->init_segment(&(gyro->_i2c_segments[1]), TransmitWithStop,
+                             &(gyro->_data[2]), 4, nullptr);
     
-    _bus->send_receive(&_i2c_header, &ITG3200::bus_callback, this);
+    if (!gyro->_bus->send_receive(&(gyro->_i2c_header), ITG3200::bus_callback, gyro))
+    {
+        g_work_queue.add_work_irq(ITG3200::second_stage_init, gyro);
+    }
 }
 
 // static function to call start_get_sensor_data, will add to work
@@ -143,7 +163,7 @@ void ITG3200::get_data_trigger(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
 
-    if (!gyro->start_get_sensor_data())
+    if (gyro->_state == 10 && !gyro->start_get_sensor_data())
     {
         g_work_queue.add_work_irq(ITG3200::get_data_trigger, gyro);
     }
@@ -163,7 +183,10 @@ bool ITG3200::start_get_sensor_data()
     _bus->init_segment(&_i2c_segments[0], TransmitNoStop, &_data[0], 1, &_i2c_segments[1]);
     _bus->init_segment(&_i2c_segments[1], ReceiveWithStop, &_data[0], 8, nullptr);
 
-    _bus->send_receive(&_i2c_header, &ITG3200::bus_callback, this);
+    if (!_bus->send_receive(&_i2c_header, ITG3200::bus_callback, this))
+    {
+        return false;
+    }
 
     return true;
 }
@@ -209,7 +232,7 @@ void ITG3200::bus_callback(void *data)
     {
         // set state to 2, do second stage of initialization
         gyro->_state = 2;
-        gyro->second_stage_init();
+        second_stage_init(gyro);
     }
     else if (gyro->_state == 2)
     {
