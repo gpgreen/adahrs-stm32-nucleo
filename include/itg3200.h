@@ -24,8 +24,11 @@ public:
     void begin(int16_t* sign_map, int* axis_map,
                uint8_t priority, uint8_t subpriority);
 
-    // retrieve data, return false if not ready
-    bool start_get_sensor_data();
+    // has setup been completed?
+    bool setup_complete();
+    
+    // start data retrieval
+    void start_get_sensor_data();
 
     // true when data has been received
     bool sensor_data_received();
@@ -49,7 +52,8 @@ private:
     static void first_stage_init(void* data);
     static void second_stage_init(void* data);
     static void get_data_trigger(void* data);
-    static void bus_callback(void *data);
+    static void bus_callback(void* data);
+    static void retry_send(void* data);
     
     // define away copy constructor and assignment operator
     ITG3200(const ITG3200&);

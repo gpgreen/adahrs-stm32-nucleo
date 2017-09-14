@@ -17,7 +17,7 @@
 #define I2C_RECEIVE                     0x00000001
 #define I2C_GENERATE_STOP               0x00000002
 #define I2C_WAITING_FOR_ADDR            0x00000004
-#define I2C_WAITING_FOR_DMA             0x00000008
+#define I2C_HAVE_DMA                    0x00000008
 
 // ----------------------------------------------------------------------------
 
@@ -165,6 +165,7 @@ bool I2C::send_receive(I2CMasterTxHeader* hdr,
     if (_tx_busy || hdr->first == nullptr)
         return false;
 
+    _tx_busy = true;
     _hdr = hdr;
     _hdr->num_txn_completed = 0;
     _send_completion_fn = completed_fn;
@@ -199,17 +200,15 @@ void I2C::tx_start_irq(void* data)
 
 void I2C::tx_start()
 {
-    // check for legal starting conditions, not busy, or busy and waiting for DMA
-    if (_hdr->first == nullptr || _hdr->first->buflen <= 0)
+    // check for legal starting conditions
+    if (_hdr->first == nullptr || _hdr->first->buflen <= 0
+        // if we have already gotten the DMA, no need to run this
+        // method again, it may have gotten on the work queue multiple
+        // times
+        || (_hdr->first->flags & I2C_HAVE_DMA) == I2C_HAVE_DMA)
         return;
     
     I2CMasterTxSegment* seg = _hdr->first;
-
-    // check for waiting for DMA
-    if (_tx_busy == true && (seg->flags & I2C_WAITING_FOR_DMA) != I2C_WAITING_FOR_DMA)
-        return;
-
-    _tx_busy = true;
 
     bool receive = (seg->flags & I2C_RECEIVE) == I2C_RECEIVE;
 
@@ -238,11 +237,10 @@ void I2C::tx_start()
     
     if (!which_dma->start(&DMA_Init, I2C::dma_complete, this))
     {
-        seg->flags |= I2C_WAITING_FOR_DMA;
-	g_work_queue.add_work_irq(I2C::tx_start_irq, this);
+    	g_work_queue.add_work_irq(I2C::tx_start_irq, this);
         return;
     }
-    seg->flags &= ~(I2C_WAITING_FOR_DMA);
+    seg->flags |= I2C_HAVE_DMA;
     
     if (receive)
     {
@@ -299,8 +297,7 @@ void I2C::priv_rx_complete()
     {
         I2C_GenerateSTOP(_i2c, ENABLE);
     }
-    _hdr->num_txn_completed++;
-    _tx_busy = false;
+    ++_hdr->num_txn_completed;
     // advance the segment if there is more
     if (_hdr->first->next != nullptr)
     {
@@ -310,6 +307,7 @@ void I2C::priv_rx_complete()
     // trigger the callback if given
     else if (_send_completion_fn != nullptr)
     {
+        _tx_busy = false;
         _send_completion_fn(_send_completion_data);
     }
 }
@@ -321,8 +319,7 @@ void I2C::priv_tx_complete()
     {
         I2C_GenerateSTOP(_i2c, ENABLE);
     }
-    _hdr->num_txn_completed++;
-    _tx_busy = false;
+    ++_hdr->num_txn_completed;
     // advance the segment if there is more
     if (_hdr->first->next != nullptr)
     {
@@ -332,6 +329,7 @@ void I2C::priv_tx_complete()
     // trigger the callback if given
     else if (_send_completion_fn != nullptr)
     {
+    	_tx_busy = false;
         _send_completion_fn(_send_completion_data);
     }
 }

@@ -105,6 +105,20 @@ void ITG3200::configure_nvic(uint8_t priority, uint8_t subpriority)
     NVIC_Init(&NVIC_InitStructure);
 }
 
+void ITG3200::retry_send(void* data)
+{
+    ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
+    if (!gyro->_bus->send_receive(&(gyro->_i2c_header), ITG3200::bus_callback, gyro))
+    {
+        g_work_queue.add_work_irq(ITG3200::retry_send, gyro);
+    }
+}
+
+bool ITG3200::setup_complete()
+{
+    return _state >= 10;
+}
+
 void ITG3200::first_stage_init(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
@@ -120,18 +134,16 @@ void ITG3200::first_stage_init(void* data)
 
     if (!gyro->_bus->send_receive(&(gyro->_i2c_header), ITG3200::bus_callback, gyro))
     {
-        g_work_queue.add_work_irq(ITG3200::first_stage_init, gyro);
-    }
-    else
-    {
-        // delay for 100ms
-        delaytimer.sleep(100);
+        g_work_queue.add_work_irq(ITG3200::retry_send, gyro);
     }
 }
 
 void ITG3200::second_stage_init(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
+
+    // delay for 100ms
+    delaytimer.sleep(100);
 
     // select x gyro clock source
     gyro->_data[0] = ITG_REG_PWR_MGMT;
@@ -153,7 +165,7 @@ void ITG3200::second_stage_init(void* data)
     
     if (!gyro->_bus->send_receive(&(gyro->_i2c_header), ITG3200::bus_callback, gyro))
     {
-        g_work_queue.add_work_irq(ITG3200::second_stage_init, gyro);
+        g_work_queue.add_work_irq(ITG3200::retry_send, gyro);
     }
 }
 
@@ -163,17 +175,17 @@ void ITG3200::get_data_trigger(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
 
-    if (gyro->_state == 10 && !gyro->start_get_sensor_data())
+    if (gyro->_state == 10)
     {
-        g_work_queue.add_work_irq(ITG3200::get_data_trigger, gyro);
+        gyro->start_get_sensor_data();
     }
 }
 
 // go get new sensor data, returns false if not ready to do so
-bool ITG3200::start_get_sensor_data()
+void ITG3200::start_get_sensor_data()
 {
     if (_state != 10)
-        return false;
+        return;
 
     // set read data register
     _data[0] = ITG_REG_TEMP_OUT_H;
@@ -185,10 +197,8 @@ bool ITG3200::start_get_sensor_data()
 
     if (!_bus->send_receive(&_i2c_header, ITG3200::bus_callback, this))
     {
-        return false;
+        g_work_queue.add_work_irq(ITG3200::retry_send, this);
     }
-
-    return true;
 }
 
 bool ITG3200::sensor_data_received()
@@ -236,7 +246,7 @@ void ITG3200::bus_callback(void *data)
     }
     else if (gyro->_state == 2)
     {
-        // set state to 20, initialization complete
+        // set state to 10, initialization complete
         gyro->_state = 10;
     }
     else if (gyro->_state == 10)
