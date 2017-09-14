@@ -33,7 +33,6 @@ private:
     void tx_start();
     static void rx_dma_complete(void* data);
     void priv_rx_complete();
-    void configure_nvic(uint8_t priority, uint8_t subpriority);
 
     // define away copy constructor and assignment operator
     SPI(const SPI&);
@@ -51,6 +50,7 @@ private:
     volatile bool _tx_busy;
     bool _alt_func;
     bool _use_ss_hardware;
+    volatile int _flags;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;
     void (*_slave_select_fn)(bool);

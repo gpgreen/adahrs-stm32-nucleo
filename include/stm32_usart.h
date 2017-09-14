@@ -39,7 +39,6 @@ private:
     static void tx_dma_complete(void* data);
     void rx_dma_complete();
     void priv_rx_complete();
-    void configure_nvic(uint8_t priority, uint8_t subpriority);
     
     // define away copy constructor and assignment operator
     USART(const USART&);

@@ -33,7 +33,7 @@ void ADAHRSInit::begin(void)
     DMA1Channel7.begin(DMA1_IRQ_PRIORITY, 0);
 
     // configure usart
-    usart1.begin(115200, USART1_IRQ_PRIORITY, 0);
+    usart1.begin(115200, USART_IRQ_PRIORITY, 0);
 
     // configure spi1 in alternate pin mode, hardware ss control
     spi1.begin(true, true, nullptr, SPI1_IRQ_PRIORITY, 0);
@@ -63,6 +63,22 @@ void ADAHRSInit::configure_led()
 
     // Start with led turned off
     led_off();
+}
+
+// ----------------------------------------------------------------------------
+
+void configure_nvic(uint8_t irq_no, uint8_t priority, uint8_t subpriority)
+{
+    // enable the IRQ
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    // enable the DMA Interrupt
+    NVIC_InitStructure.NVIC_IRQChannel = irq_no;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+
 }
 
 // ----------------------------------------------------------------------------

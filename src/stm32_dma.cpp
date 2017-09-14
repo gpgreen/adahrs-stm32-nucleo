@@ -89,9 +89,6 @@ DMA::DMA(DMA_Channel_TypeDef* channel) :
 
 void DMA::begin(uint8_t priority, uint8_t subpriority)
 {
-    // enable the IRQ
-    NVIC_InitTypeDef NVIC_InitStructure;
-
 #ifdef STM32F10X_HD_VL
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA2, ENABLE);
 #endif
@@ -101,11 +98,7 @@ void DMA::begin(uint8_t priority, uint8_t subpriority)
     DMA_ClearFlag(_flagmask);
 
     // enable the DMA Interrupt
-    NVIC_InitStructure.NVIC_IRQChannel = _irqno;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
+    configure_nvic(_irqno, priority, subpriority);
 
     _busy = false;
 }

@@ -87,7 +87,7 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map,
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
     // enable interrupt handler
-    configure_nvic(priority, subpriority);
+    configure_nvic(EXTI0_IRQn, priority, subpriority);
     
     // configure EXTI Line 0 as interrupt channel
     EXTI_ClearITPendingBit(EXTI_Line0);
@@ -145,19 +145,6 @@ void ADXL345::second_stage_init()
     _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
     
     _bus->send_receive(&_i2c_header, &ADXL345::bus_callback, this);
-}
-
-void ADXL345::configure_nvic(uint8_t priority, uint8_t subpriority)
-{
-    // enable the IRQ
-    NVIC_InitTypeDef NVIC_InitStructure;
-
-    // enable the DMA Interrupt
-    NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
 }
 
 // static function to call start_get_sensor_data, will add to work

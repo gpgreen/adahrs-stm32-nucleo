@@ -12,11 +12,15 @@
 #include "work_queue.h"
 
 // ----------------------------------------------------------------------------
+// Flags for use in transaction process
+#define SPI_HAVE_DMA                    0x1
+
+// ----------------------------------------------------------------------------
 
 SPI::SPI(int device_no)
     : _devno(device_no), _spi(nullptr), _tx_dma(nullptr), _rx_dma(nullptr),
       _tx_buffer(nullptr), _buffer_len(0),
-      _tx_busy(false), _alt_func(false), _use_ss_hardware(true),
+      _tx_busy(false), _alt_func(false), _use_ss_hardware(true), _flags(0),
       _send_completion_fn(nullptr), _send_completion_data(nullptr),
       _slave_select_fn(nullptr)
 {
@@ -199,32 +203,21 @@ void SPI::begin(bool use_alternate,
     SPI_Init(_spi, &SPI_InitStructure);
 
     // configure interrupt vector
-    configure_nvic(priority, subpriority);
-}
-
-void SPI::configure_nvic(uint8_t priority, uint8_t subpriority)
-{
-    // enable the IRQ
-    NVIC_InitTypeDef NVIC_InitStructure;
-
-    // enable the DMA Interrupt
-    NVIC_InitStructure.NVIC_IRQChannel = _irqno;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
+    configure_nvic(_irqno, priority, subpriority);
 }
 
 bool SPI::send(uint8_t* txdata, int buflen, void (*completed_fn)(void*), void* data)
 {
     if (_tx_busy)
         return false;
-    
+
+    _tx_busy = true;
     _tx_buffer = txdata;
     _buffer_len = buflen;
     _send_completion_fn = completed_fn;
     _send_completion_data = data;
-
+    _flags = 0;
+    
     tx_start();
 
     return true;
@@ -238,10 +231,8 @@ void SPI::tx_start_irq(void* data)
 
 void SPI::tx_start()
 {
-    if (_tx_busy || _buffer_len <= 0)
+    if (_buffer_len <= 0 || (_flags & SPI_HAVE_DMA) == SPI_HAVE_DMA)
         return;
-
-    _tx_busy = true;
 
     // Configure the DMA controller to make the transfer
     DMA_InitTypeDef DMA_txInit;
@@ -271,24 +262,23 @@ void SPI::tx_start()
     
     // check that BSY flag is cleared, before starting the new transmission
     if (SPI_I2S_GetFlagStatus(_spi, SPI_I2S_FLAG_BSY) != RESET) {
-        _tx_busy = false;
 	g_work_queue.add_work_irq(SPI::tx_start_irq, this);
         return;
     }
 
     if (!_rx_dma->start(&DMA_rxInit, SPI::rx_dma_complete, this))
     {
-        _tx_busy = false;
 	g_work_queue.add_work_irq(SPI::tx_start_irq, this);
         return;
     }
     if (!_tx_dma->start(&DMA_txInit, nullptr, nullptr))
     {
         _rx_dma->cancel();
-        _tx_busy = false;
 	g_work_queue.add_work_irq(SPI::tx_start_irq, this);
         return;
     }
+    _flags |= SPI_HAVE_DMA;
+    
     // call slave-select-on if enabled
     if (!_use_ss_hardware)
         _slave_select_fn(true);

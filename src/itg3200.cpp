@@ -75,7 +75,7 @@ void ITG3200::begin(int16_t* sign_map, int* axis_map,
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
     // enable interrupt handler
-    configure_nvic(priority, subpriority);
+    configure_nvic(EXTI1_IRQn, priority, subpriority);
     
     // configure EXTI Line 1 as interrupt channel
     EXTI_ClearITPendingBit(EXTI_Line1);
@@ -90,19 +90,6 @@ void ITG3200::begin(int16_t* sign_map, int* axis_map,
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource1);
 
     first_stage_init(this);
-}
-
-void ITG3200::configure_nvic(uint8_t priority, uint8_t subpriority)
-{
-    // enable the IRQ
-    NVIC_InitTypeDef NVIC_InitStructure;
-
-    // enable the DMA Interrupt
-    NVIC_InitStructure.NVIC_IRQChannel = EXTI1_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
 }
 
 void ITG3200::retry_send(void* data)

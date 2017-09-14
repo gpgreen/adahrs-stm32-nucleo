@@ -129,23 +129,10 @@ void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
     USART_Init(_uart, &USART_InitStructure);
 
     // configure interrupt vector
-    configure_nvic(priority, subpriority);
+    configure_nvic(_irqno, priority, subpriority);
 
     // enable USART
     USART_Cmd(_uart, ENABLE);
-}
-
-void USART::configure_nvic(uint8_t priority, uint8_t subpriority)
-{
-    // enable the IRQ
-    NVIC_InitTypeDef NVIC_InitStructure;
-
-    // enable the DMA Interrupt
-    NVIC_InitStructure.NVIC_IRQChannel = _irqno;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
 }
 
 bool USART::transmit(const char* txdata, int len)
@@ -227,6 +214,13 @@ bool USART::has_received_data()
 // get received data, returns count of data copied
 unsigned int USART::get_received_data(uint8_t* buf, int buflen)
 {
+    // critical section created by setting BASEPRI to a level
+    // above the USART irq, that way it cannot be interrupted by
+    // that irq
+
+    // === START critical section
+    __set_BASEPRI(USART_IRQ_MASKING);
+
     int sz = buflen>_rx_buffer_start ? buflen : _rx_buffer_start;
     for (int i = 0; i < sz; ++i)
     {
@@ -239,6 +233,11 @@ unsigned int USART::get_received_data(uint8_t* buf, int buflen)
             _rx_buffer[RX_BUFFER_SIZE - i] = *bufptr;
         }
     }
+
+    __DMB();
+    __set_BASEPRI(0U);
+    // === END critical section
+
     return sz;
 }
 
@@ -267,7 +266,10 @@ void USART::rx_dma_complete(void)
 
 void USART::priv_rx_complete(void)
 {
-
+    if (_rx_buffer_start < RX_BUFFER_SIZE)
+        _rx_buffer[_rx_buffer_start++] = (uint8_t)USART_ReceiveData(_uart);
+    else
+        while(1);
 }
 
 // ----------------------------------------------------------------------------

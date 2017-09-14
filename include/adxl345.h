@@ -54,7 +54,6 @@ public:
 private:
 
     void second_stage_init();
-    void configure_nvic(uint8_t priority, uint8_t subpriority);
     static void bus_callback(void* data);
     static void get_data_trigger(void* data);
     

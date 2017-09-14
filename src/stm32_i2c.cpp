@@ -137,7 +137,7 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
 
     // configure interrupt vector
-    configure_nvic(priority, subpriority);
+    configure_nvic(_irqno, priority, subpriority);
 
     // configure I2C
     I2C_DeInit(_i2c);
@@ -145,18 +145,6 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
 
     // enable I2C
     I2C_Cmd(_i2c, ENABLE);
-}
-
-void I2C::configure_nvic(uint8_t priority, uint8_t subpriority)
-{
-
-    // enable the Event IRQ
-    NVIC_InitTypeDef NVIC_InitStructure;
-    NVIC_InitStructure.NVIC_IRQChannel = _irqno;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
 }
 
 bool I2C::send_receive(I2CMasterTxHeader* hdr,

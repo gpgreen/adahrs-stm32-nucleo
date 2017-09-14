@@ -49,6 +49,8 @@ extern "C"
     void EXTI0_IRQHandler(void);
     void EXTI1_IRQHandler(void);
     
+    void configure_nvic(uint8_t irq_no, uint8_t priority, uint8_t subpriority);
+
 #if defined(__cplusplus)
 }
 #endif
