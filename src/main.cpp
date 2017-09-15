@@ -3,47 +3,21 @@
  *
  *  Created on: Aug 28, 2017
  *      Author: ggreen
- *
- * Original copyright header:
- *
- * This file is part of the µOS++ distribution.
- *   (https://github.com/micro-os-plus)
- * Copyright (c) 2014 Liviu Ionescu.
- *
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following
- * conditions:
- *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
  */
 
 // ----------------------------------------------------------------------------
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "diag/Trace.h"
 
 #include "adahrs_init.h"
+#include "adahrs_config.h"
 #include "stm32_delaytimer.h"
 #include "stm32_usart.h"
 #include "stm32_i2c.h"
 #include "adxl345.h"
 #include "itg3200.h"
+#include "adahrs_config_def.h"
 
 // ----------------------------------------------------------------------------
 //
@@ -93,21 +67,14 @@ int main(int, char**);
 
 // ----- main() ---------------------------------------------------------------
 
-// Sample pragmas to cope with warnings. Please note the related line at
-// the end of this function, used to pop the compiler diagnostics status.
-#pragma GCC diagnostic push
-//#pragma GCC diagnostic ignored "-Wunused-parameter"
-//#pragma GCC diagnostic ignored "-Wmissing-declarations"
-//#pragma GCC diagnostic ignored "-Wreturn-type"
-
+ADAHRSConfig config;
 ADAHRSInit init;
 
-bool wait_for_accel_data = false;
-
-// adjustments for accelerometer, which axis is x,y,z
-// sign map to reverse acceleration on axis
-int accel_axis_map[3] = {0, 1, 2};
-int16_t accel_sign_map[3] = {1, 1, 1};
+// adjustments for device axes
+// axis_map - which axis is x,y,z
+// sign_map - reverse direction on an axis if -1
+int axis_map[3] = {0, 1, 2};
+int16_t sign_map[3] = {1, 1, 1};
 
 int
 main(int /*argc*/, char* /*argv*/[])
@@ -115,21 +82,24 @@ main(int /*argc*/, char* /*argv*/[])
     // At this stage the system clock should have already been configured
     // at high speed.
     
-    delaytimer.start();
-    init.begin();
+    delaytimer.begin();
 
-    uint32_t seconds = 0;
+    // initialize devices
+    init.begin(&config);
 
     // start the accel sensor
     ADXL345 adxl(&i2c1);
-    adxl.begin(accel_sign_map, accel_axis_map, ADXL_IRQ_PRIORITY, 0);
+    adxl.begin(sign_map, axis_map, ADXL_IRQ_PRIORITY, 0);
     
     // start the gyro sensor
     ITG3200 gyro(&i2c1);
-    gyro.begin(accel_sign_map, accel_axis_map, ITG_IRQ_PRIORITY, 0);
+    gyro.begin(sign_map, axis_map, ITG_IRQ_PRIORITY, 0);
 
     // Infinite loop
     usart1.transmit("hello!\r\n", 8);
+
+    uint32_t seconds = 0;
+
     while (1)
     {
     	led_on();
@@ -144,13 +114,11 @@ main(int /*argc*/, char* /*argv*/[])
         }
         if (gyro.sensor_data_received())
         {
-        	gyro.correct_sensor_data();
-        	usart1.transmit("got more!\r\n", 11);
+            gyro.correct_sensor_data();
+            usart1.transmit("got more!\r\n", 11);
         }
-       ++seconds;
+        ++seconds;
     }
 }
-
-#pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------

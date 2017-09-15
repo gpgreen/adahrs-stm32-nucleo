@@ -18,6 +18,9 @@
 // which kind of i2c transmission
 enum I2CTransferType {TransmitNoStop, TransmitWithStop, ReceiveNoStop, ReceiveWithStop};
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 // each segment of the transmission has one of these
 struct I2CMasterTxSegment
 {
@@ -33,7 +36,6 @@ struct I2CMasterTxHeader
     struct I2CMasterTxSegment* first;
     uint8_t slave_address;
     uint8_t num_txn_completed;
-    uint8_t padding[2];
 };
 
 // ----------------------------------------------------------------------------
@@ -79,13 +81,14 @@ private:
     uint8_t _irqno;
     volatile bool _tx_busy;
     bool _alt_func;
-    uint8_t padding;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;
 
     friend void I2C1_EV_IRQHandler(void);
     friend void I2C2_EV_IRQHandler(void);
 };
+
+#pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
 // hardware instances

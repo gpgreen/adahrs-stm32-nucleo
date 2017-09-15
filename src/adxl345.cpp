@@ -123,7 +123,7 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map,
     delaytimer.sleep(50);
 }
 
-void ADXL345::second_stage_init()
+void ADXL345::init_stage2()
 {
 
     // setup interrupt control registers
@@ -162,10 +162,11 @@ void ADXL345::get_data_trigger(void* data)
 // go get new sensor data, returns false if not ready to do so
 bool ADXL345::start_get_sensor_data()
 {
-    if (_state != 10)
+    // check if current state is 10, if so, try to set it to 11
+    // if we fail the bus_callback has changed the state, so
+    // return
+    if (!__sync_bool_compare_and_swap(&_state, 10, 11))
         return false;
-
-    _state = 11;
     
     // set read data register
     _data[0] = ADXL_DATAX0;
@@ -182,6 +183,8 @@ bool ADXL345::start_get_sensor_data()
     return true;
 }
 
+// try to send current i2c transfer setup, if i2c is busy, then schedule it for
+// later
 void ADXL345::retry_send(void* data)
 {
     ADXL345* adxl = reinterpret_cast<ADXL345*>(data);
@@ -238,7 +241,7 @@ void ADXL345::bus_callback(void *data)
     {
         // set state to 2, next set of setup
         adxl->_state = 2;
-        adxl->second_stage_init();
+        adxl->init_stage2();
     }
     else if (adxl->_state == 2)
     {
@@ -267,5 +270,6 @@ void EXTI0_IRQHandler(void)
     }
 	 
 }
+
 // ----------------------------------------------------------------------------
 

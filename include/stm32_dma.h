@@ -14,6 +14,9 @@
 
 // ----------------------------------------------------------------------------
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 class DMA
 {
 public:
@@ -44,7 +47,6 @@ private:
     uint32_t _flagmask;
     uint8_t _irqno;
     volatile bool _busy;
-    uint8_t _unused [2];
 
     friend void DMA1_Channel1_IRQHandler(void);
     friend void DMA1_Channel2_IRQHandler(void);
@@ -59,6 +61,8 @@ private:
     friend void DMA2_Channel4_5_IRQHandler(void);
 
 };
+
+#pragma GCC diagnostic pop
 
 // instantiate objects for each channel
 #ifdef DMA1_CHANNEL1_USED

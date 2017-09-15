@@ -15,6 +15,9 @@
 
 // ----------------------------------------------------------------------------
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 class USART
 {
 public:
@@ -35,9 +38,8 @@ public:
 private:
     
     static void tx_start_irq(void * data);
-    void tx_start();
     static void tx_dma_complete(void* data);
-    void rx_dma_complete();
+    void tx_start();
     void priv_rx_complete();
     
     // define away copy constructor and assignment operator
@@ -54,9 +56,7 @@ private:
     volatile uint8_t* _tx_buf_p;
     volatile int _tx_buffer_start;
     uint8_t _irqno;
-    volatile bool _tx_busy;
-    volatile bool _rx_busy;
-    uint8_t padding;
+    volatile int _tx_busy;
     // receive buffer members
     volatile uint8_t _rx_buffer[RX_BUFFER_SIZE];
     volatile int _rx_buffer_start;
@@ -64,6 +64,8 @@ private:
     friend void USART1_IRQHandler(void);
     friend void USART2_IRQHandler(void);
 };
+
+#pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
 // hardware instances

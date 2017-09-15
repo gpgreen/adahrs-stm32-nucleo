@@ -24,7 +24,6 @@ WorkQueue::WorkQueue()
 void WorkQueue::begin(uint8_t priority, uint8_t subpriority)
 {
     // configure Timer2 for work queue
-    // This is used to trigger the work queue periodically
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 
     // disable timer if enabled
@@ -39,17 +38,13 @@ void WorkQueue::begin(uint8_t priority, uint8_t subpriority)
     TIM_DeInit(TIM2);
     TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
 
-    // Enable the TIM2 global Interrupt and set at lowest priority.
-    NVIC_InitTypeDef NVIC_InitStructure;
-    NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = priority;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = subpriority;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
+    // Enable the TIM2 update Interrupt and set at lowest priority.
+    configure_nvic(TIM2_IRQn, priority, subpriority);
 
     // enable the timer
     TIM_Cmd(TIM2, ENABLE);
-    // enable the update interrupt
+
+    // enable the timer update interrupt
     TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
 }
 

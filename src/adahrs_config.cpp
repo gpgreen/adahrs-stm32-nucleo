@@ -22,7 +22,7 @@ static uint32_t s_flash_start_address;
 
 ADAHRSConfig::ADAHRSConfig()
 {
-	// initialize static variables from linker script variable
+    // initialize static variables from linker script variable
     s_flash_start_address = __flashb1_start__;
     s_factory_start_address = __flashb1_start__ + 2048;
 }
@@ -130,17 +130,27 @@ void ADAHRSConfig::reset_to_factory()
     if (FGET_FACTORY_UNINITIALIZED())
     {
         // Communication configuration
-        //	 _config_reg[UM6_COMMUNICATION] = UM6_BROADCAST_ENABLED | UM6_ACCELS_PROC_ENABLED | UM6_GYROS_PROC_ENABLED | UM6_MAG_PROC_ENABLED | UM6_EULER_ENABLED;
-        _config_reg[UM6_COMMUNICATION] =  UM6_BROADCAST_ENABLED | UM6_GYROS_PROC_ENABLED | UM6_GYROS_RAW_ENABLED | UM6_TEMPERATURE_ENABLED | UM6_ACCELS_PROC_ENABLED | UM6_MAG_PROC_ENABLED | UM6_EULER_ENABLED | UM6_GPS_POSITION_ENABLED | UM6_GPS_REL_POSITION_ENABLED | UM6_GPS_COURSE_SPEED_ENABLED | UM6_GPS_SAT_SUMMARY_ENABLED | UM6_GPS_SAT_DATA_ENABLED;
-        //	 _config_reg[UM6_COMMUNICATION] = UM6_BROADCAST_ENABLED | UM6_MAG_PROC_ENABLED | UM6_MAG_RAW_ENABLED | UM6_GYROS_PROC_ENABLED | UM6_EULER_ENABLED | UM6_COV_ENABLED;
-        //	 _config_reg[UM6_COMMUNICATION] = UM6_BROADCAST_ENABLED | UM6_GYROS_PROC_ENABLED | UM6_GYROS_RAW_ENABLED;
-        //	 _config_reg[UM6_COMMUNICATION] = 0;
+        _config_reg[UM6_COMMUNICATION] =  UM6_BROADCAST_ENABLED
+            | UM6_GYROS_PROC_ENABLED
+            | UM6_GYROS_RAW_ENABLED
+            | UM6_TEMPERATURE_ENABLED
+            | UM6_ACCELS_PROC_ENABLED
+            | UM6_MAG_PROC_ENABLED
+            | UM6_EULER_ENABLED
+            | UM6_GPS_POSITION_ENABLED
+            | UM6_GPS_REL_POSITION_ENABLED
+            | UM6_GPS_COURSE_SPEED_ENABLED
+            | UM6_GPS_SAT_SUMMARY_ENABLED
+            | UM6_GPS_SAT_DATA_ENABLED;
         _config_reg[UM6_COMMUNICATION] |= 0x0000;		// This is the broadcast rate (or, rather, what is used to set the broadcast rate)
         _config_reg[UM6_COMMUNICATION] |= (5 << UM6_BAUD_START_BIT);
         _config_reg[UM6_COMMUNICATION] |= (5 << UM6_GPS_BAUD_START_BIT);
 		  
         // MISC configuration
-        _config_reg[UM6_MISC_CONFIG] = UM6_MAG_UPDATE_ENABLED | UM6_ACCEL_UPDATE_ENABLED | UM6_QUAT_ESTIMATE_ENABLED | UM6_GYRO_STARTUP_CAL;
+        _config_reg[UM6_MISC_CONFIG] = UM6_MAG_UPDATE_ENABLED
+            | UM6_ACCEL_UPDATE_ENABLED
+            | UM6_QUAT_ESTIMATE_ENABLED
+            | UM6_GYRO_STARTUP_CAL;
 		  
         // Magnetometer reference vector
         f = 0.136f;

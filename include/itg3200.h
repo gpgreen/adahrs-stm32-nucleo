@@ -28,7 +28,7 @@ public:
     bool setup_complete();
     
     // start data retrieval
-    void start_get_sensor_data();
+    bool start_get_sensor_data();
 
     // true when data has been received
     bool sensor_data_received();
@@ -48,8 +48,8 @@ public:
     
 private:
 
-    static void first_stage_init(void* data);
-    static void second_stage_init(void* data);
+    static void init_stage1(void* data);
+    static void init_stage2(void* data);
     static void get_data_trigger(void* data);
     static void bus_callback(void* data);
     static void retry_send(void* data);

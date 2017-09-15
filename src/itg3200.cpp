@@ -89,7 +89,7 @@ void ITG3200::begin(int16_t* sign_map, int* axis_map,
     // Enable external interrupt 1
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource1);
 
-    first_stage_init(this);
+    init_stage1(this);
 }
 
 void ITG3200::retry_send(void* data)
@@ -106,7 +106,7 @@ bool ITG3200::setup_complete()
     return _state >= 10;
 }
 
-void ITG3200::first_stage_init(void* data)
+void ITG3200::init_stage1(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
 
@@ -125,7 +125,7 @@ void ITG3200::first_stage_init(void* data)
     }
 }
 
-void ITG3200::second_stage_init(void* data)
+void ITG3200::init_stage2(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
 
@@ -158,20 +158,20 @@ void ITG3200::second_stage_init(void* data)
 void ITG3200::get_data_trigger(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
-
-    if (gyro->_state == 10)
+    if (!gyro->start_get_sensor_data())
     {
-        gyro->start_get_sensor_data();
+        g_work_queue.add_work_irq(ITG3200::get_data_trigger, gyro);
     }
 }
 
 // go get new sensor data, returns false if not ready to do so
-void ITG3200::start_get_sensor_data()
+bool ITG3200::start_get_sensor_data()
 {
-    if (_state != 10)
-        return;
-
-    _state = 11;
+    // check if current state is 10, if so, try to set it to 11
+    // if we fail the bus_callback has changed the state so
+    // return
+    if (!__sync_bool_compare_and_swap(&_state, 10, 11))
+        return false;
 
     // set read data register
     _data[0] = ITG_REG_TEMP_OUT_H;
@@ -185,6 +185,7 @@ void ITG3200::start_get_sensor_data()
     {
         g_work_queue.add_work_irq(ITG3200::retry_send, this);
     }
+    return true;
 }
 
 bool ITG3200::sensor_data_received()
@@ -215,10 +216,12 @@ void ITG3200::correct_sensor_data()
  * state machine
  *
  * state 0 - state at startup, transitions to 1 when begin is called
- * state 1 - completion of control register setup
+ * state 1 - completion of 1st stage control register setup, do 2nd stage
  *       -> 2
- * state 2 - completion of data retrieval
- *       -> 3
+ * state 2 - completion of 2nd stage control register setup
+ *       -> 10
+ * state 11 - completion of data retrieval
+ *       -> 12
  */
 void ITG3200::bus_callback(void *data)
 {
@@ -228,7 +231,7 @@ void ITG3200::bus_callback(void *data)
     {
         // set state to 2, do second stage of initialization
         gyro->_state = 2;
-        second_stage_init(gyro);
+        init_stage2(gyro);
     }
     else if (gyro->_state == 2)
     {

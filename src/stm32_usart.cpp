@@ -12,7 +12,7 @@
 
 USART::USART(int device_no) :
     _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr), _tx_buf_p(nullptr),
-    _tx_buffer_start(0),  _irqno(0), _tx_busy(false), _rx_busy(false), _rx_buffer_start(0)
+    _tx_buffer_start(0),  _irqno(0), _tx_busy(0), _rx_buffer_start(0)
 {
     if (device_no == 1)
     {
@@ -140,28 +140,42 @@ bool USART::transmit(const char* txdata, int len)
     if (len + _tx_buffer_start > TX_BUFFER_SIZE)
         return false;
 
+    // critical section created by setting BASEPRI to a level
+    // above the USART irq, that way it cannot be interrupted by
+    // that irq
+
+    // === START critical section
+    __set_BASEPRI(USART_IRQ_MASKING);
+
     _tx_buf_p = &_tx_buffer[_tx_buffer_start];
 
     for (int i = 0; i < len; ++i)
         _tx_buffer[_tx_buffer_start++] = txdata[i];
+
+    __DMB();
+    __set_BASEPRI(0U);
+    // === END critical section
 
     tx_start();
 
     return true;
 }
 
+// called from within IRQ
 void USART::tx_start_irq(void * data)
 {
     USART* usart = reinterpret_cast<USART*>(data);
     usart->tx_start();
 }
 
+// can be called from within IRQ
 void USART::tx_start()
 {
-    if (_tx_busy || _tx_buffer_start == 0)
+    if (_tx_buffer_start == 0)
         return;
 
-    _tx_busy = true;
+    if (!__sync_bool_compare_and_swap(&_tx_busy, 0, 1))
+        return;
 
     // Configure the DMA controller to make the transfer
     DMA_InitTypeDef DMA_InitStructure;
@@ -188,7 +202,7 @@ void USART::tx_start()
 
     // check the TC bit, if low, then wait until it is high, then start the new transmission
     if (USART_GetFlagStatus(_uart, USART_FLAG_TC) == RESET) {
-        _tx_busy = false;
+        _tx_busy = 0;
 	g_work_queue.add_work_irq(USART::tx_start_irq, this);
         return;
     }
@@ -200,7 +214,7 @@ void USART::tx_start()
 
     if (!_tx_dma->start(&DMA_InitStructure, &USART::tx_dma_complete, this))
     {
-        _tx_busy = false;
+        _tx_busy = 0;
 	g_work_queue.add_work_irq(USART::tx_start_irq, this);
     }
 }
@@ -245,7 +259,7 @@ unsigned int USART::get_received_data(uint8_t* buf, int buflen)
 void USART::tx_dma_complete(void* ptr)
 {
     USART* uart = reinterpret_cast<USART*>(ptr);
-    uart->_tx_busy = false;
+    uart->_tx_busy = 0;
     // if current buf ptr is the same, then no more data to send
     if (uart->_tx_buf_p == &uart->_tx_buffer[uart->_tx_buffer_start])
     {
@@ -258,12 +272,7 @@ void USART::tx_dma_complete(void* ptr)
     }
 }
 
-void USART::rx_dma_complete(void)
-{
-    _rx_busy = false;
-    _rx_buffer_start = 0;
-}
-
+// called from within IRQ
 void USART::priv_rx_complete(void)
 {
     if (_rx_buffer_start < RX_BUFFER_SIZE)

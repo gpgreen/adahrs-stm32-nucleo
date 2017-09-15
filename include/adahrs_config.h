@@ -44,7 +44,6 @@ private:
 
     // load configuration from flash
     void load_config_from_flash(int flash_address_flag);
-
     
     // define away copy constructor and assignment operator
     ADAHRSConfig(const ADAHRSConfig&);

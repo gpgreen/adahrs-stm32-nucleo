@@ -53,7 +53,7 @@ public:
     
 private:
 
-    void second_stage_init();
+    void init_stage2();
     static void bus_callback(void* data);
     static void get_data_trigger(void* data);
     static void retry_send(void* data);

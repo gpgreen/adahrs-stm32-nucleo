@@ -19,11 +19,14 @@ ADAHRSInit::ADAHRSInit()
     // does nothing else
 }
 
-void ADAHRSInit::begin(void)
+void ADAHRSInit::begin(ADAHRSConfig* config)
 {
     // assign all priority bits to preempt, none to subpriority
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 
+    // initialize config from Flash
+    config->begin();
+    
     // configure DMA channels
     DMA1Channel2.begin(DMA1_IRQ_PRIORITY, 0);
     DMA1Channel3.begin(DMA1_IRQ_PRIORITY, 0);

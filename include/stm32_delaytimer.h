@@ -19,7 +19,7 @@ public:
 
     explicit DelayTimer(unsigned long timer_freq_hz);
 
-    void start();
+    void begin();
     void sleep(timer_ticks_t ticks);
 
 private:

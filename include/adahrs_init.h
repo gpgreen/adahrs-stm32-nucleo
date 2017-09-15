@@ -11,6 +11,7 @@
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
 #include "isr_def.h"
+#include "adahrs_config.h"
 
 // ----- LED definitions ------------------------------------------------------
 
@@ -31,7 +32,7 @@ class ADAHRSInit
 public:
     explicit ADAHRSInit();
 
-    void begin();
+    void begin(ADAHRSConfig* config);
 
 private:
     void configure_led();
