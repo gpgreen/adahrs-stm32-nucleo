@@ -26,6 +26,23 @@ void WorkQueue::begin(uint8_t priority, uint8_t subpriority)
     // configure Timer2 for work queue
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 
+#ifdef USE_WORKQUEUE_TRACE
+    // setup pin
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    // enable clocks
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    
+    // Configure PA3 as output push pull
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+    // set low
+    GPIO_ResetBits(GPIOA, GPIO_Pin_3);
+#endif
+
     // disable timer if enabled
     TIM_Cmd(TIM2, DISABLE);
     
@@ -72,9 +89,19 @@ void WorkQueue::process(void)
     // won't cause problems
     if (cb->callback != nullptr)
     {
+
+#ifdef USE_WORKQUEUE_TRACE
+        GPIO_SetBits(GPIOA, GPIO_Pin_3);
+#endif
+
         cb->callback(cb->callback_data);
         cb->callback = nullptr;
         cb->callback_data = nullptr;
+
+#ifdef USE_WORKQUEUE_TRACE
+        GPIO_ResetBits(GPIOA, GPIO_Pin_3);
+#endif
+
     }
 }
 
@@ -105,7 +132,6 @@ void WorkQueue::add_work_irq(void (*work_fn)(void *), void* data)
         cb->callback_data = data;
     }
 
-    __DMB();
     __set_BASEPRI(0U);
     // === END critical section
 }

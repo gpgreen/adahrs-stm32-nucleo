@@ -11,7 +11,9 @@
 
 DelayTimer delaytimer(TIMER_FREQUENCY_HZ);
 
+#ifdef USE_DELAYTIMER_TRACE
 static int tracer;
+#endif
 
 // ----------------------------------------------------------------------------
 
@@ -35,11 +37,12 @@ DelayTimer::DelayTimer(timer_ticks_t timer_freq_hz)
 void
 DelayTimer::begin()
 {
+#ifdef USE_DELAYTIMER_TRACE
     // setup pin
     GPIO_InitTypeDef GPIO_InitStructure;
 
     // enable clocks
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
     
     // Configure PA2 as output push pull
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
@@ -50,7 +53,8 @@ DelayTimer::begin()
     // set low
     GPIO_ResetBits(GPIOA, GPIO_Pin_2);
     tracer = 0;
-
+#endif
+    
     // Use SysTick as reference for the delay loops.
     SysTick_Config (SystemCoreClock / _timer_freq_hz);
 }
@@ -74,6 +78,9 @@ timer_tick (void)
     {
 	--g_delay_count;
     }
+
+#ifdef USE_DELAYTIMER_TRACE
+
     if (tracer > 0)
     {
         GPIO_ResetBits(GPIOA, GPIO_Pin_2);
@@ -84,6 +91,8 @@ timer_tick (void)
         GPIO_SetBits(GPIOA, GPIO_Pin_2);
         tracer = 1;
     }
+
+#endif
 }
 
 // ----- SysTick_Handler() ----------------------------------------------------

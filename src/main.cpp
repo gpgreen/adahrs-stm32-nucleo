@@ -45,6 +45,7 @@
 //
 // WorkQueue (g_work_queue)
 //   - TIM2
+//   - GPIO: PA3 (USE_WORKQUEUE_TRACE)
 // ADXL345
 //   - I2C1
 //   - EXTI Line 0
@@ -55,6 +56,7 @@
 //   - GPIO: PA1
 // DelayTimer
 //   - SysTick
+//   - GPIO: PA2 (USE_DELAYTIMER_TRACE)
 // ----------------------------------------------------------------------------
 
 int main(int, char**);

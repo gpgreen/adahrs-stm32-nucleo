@@ -152,7 +152,6 @@ bool USART::transmit(const char* txdata, int len)
     for (int i = 0; i < len; ++i)
         _tx_buffer[_tx_buffer_start++] = txdata[i];
 
-    __DMB();
     __set_BASEPRI(0U);
     // === END critical section
 
@@ -248,7 +247,6 @@ unsigned int USART::get_received_data(uint8_t* buf, int buflen)
         }
     }
 
-    __DMB();
     __set_BASEPRI(0U);
     // === END critical section
 
