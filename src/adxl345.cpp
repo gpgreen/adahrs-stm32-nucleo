@@ -117,7 +117,7 @@ void ADXL345::begin(int16_t* sign_map, int* axis_map,
     _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 2, &_i2c_segments[2]);
     _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
     
-    _bus->send_receive(&_i2c_header, &ADXL345::bus_callback, this);
+    _bus->send_receive(&_i2c_header, ADXL345::bus_callback, this);
 
     // now sleep for 50ms
     delaytimer.sleep(50);
@@ -144,7 +144,7 @@ void ADXL345::second_stage_init()
     _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 2, &_i2c_segments[2]);
     _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
     
-    _bus->send_receive(&_i2c_header, &ADXL345::bus_callback, this);
+    _bus->send_receive(&_i2c_header, ADXL345::bus_callback, this);
 }
 
 // static function to call start_get_sensor_data, will add to work
@@ -165,6 +165,8 @@ bool ADXL345::start_get_sensor_data()
     if (_state != 10)
         return false;
 
+    _state = 11;
+    
     // set read data register
     _data[0] = ADXL_DATAX0;
     
@@ -173,16 +175,27 @@ bool ADXL345::start_get_sensor_data()
     _bus->init_segment(&_i2c_segments[0], TransmitNoStop, &_data[0], 1, &_i2c_segments[1]);
     _bus->init_segment(&_i2c_segments[1], ReceiveWithStop, &_data[0], 6, nullptr);
 
-    _bus->send_receive(&_i2c_header, &ADXL345::bus_callback, this);
-
+    if (!_bus->send_receive(&_i2c_header, ADXL345::bus_callback, this))
+    {
+        g_work_queue.add_work_irq(ADXL345::retry_send, this);
+    }
     return true;
+}
+
+void ADXL345::retry_send(void* data)
+{
+    ADXL345* adxl = reinterpret_cast<ADXL345*>(data);
+    if (!adxl->_bus->send_receive(&(adxl->_i2c_header), ADXL345::bus_callback, adxl))
+    {
+        g_work_queue.add_work_irq(ADXL345::retry_send, adxl);
+    }
 }
 
 // when data has been retrieved from i2c, then this will be true, until data
 // has been converted in get_sensor_data
 bool ADXL345::sensor_data_received()
 {
-    return _state == 11;
+    return _state == 12;
 }
 
 // take set of raw values retrieved from i2c, convert to corrected
@@ -214,8 +227,8 @@ void ADXL345::correct_sensor_data()
  *       -> 2
  * state 2 - completion of second set of control register setups
  *       -> 10
- * state 10 - completion of data retrieval
- *       -> 11
+ * state 11 - completion of data retrieval
+ *       -> 12
  */
 void ADXL345::bus_callback(void *data)
 {
@@ -232,10 +245,10 @@ void ADXL345::bus_callback(void *data)
         // set state to 10, completed initialization
         adxl->_state = 10;
     }
-    else if (adxl->_state == 10)
+    else if (adxl->_state == 11)
     {
-        // set state to 11, data has been retrieved
-        adxl->_state = 11;
+        // set state to 12, data has been retrieved
+        adxl->_state = 12;
     }
 }
 

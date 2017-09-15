@@ -129,9 +129,6 @@ void ITG3200::second_stage_init(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
 
-    // delay for 100ms
-    delaytimer.sleep(100);
-
     // select x gyro clock source
     gyro->_data[0] = ITG_REG_PWR_MGMT;
     gyro->_data[1] = 0x01;
@@ -174,6 +171,8 @@ void ITG3200::start_get_sensor_data()
     if (_state != 10)
         return;
 
+    _state = 11;
+
     // set read data register
     _data[0] = ITG_REG_TEMP_OUT_H;
     
@@ -190,7 +189,7 @@ void ITG3200::start_get_sensor_data()
 
 bool ITG3200::sensor_data_received()
 {
-    return _state == 11;
+    return _state == 12;
 }
 
 void ITG3200::correct_sensor_data()
@@ -236,10 +235,10 @@ void ITG3200::bus_callback(void *data)
         // set state to 10, initialization complete
         gyro->_state = 10;
     }
-    else if (gyro->_state == 10)
+    else if (gyro->_state == 11)
     {
-        // set state to 11, data has been retrieved
-        gyro->_state = 11;
+        // set state to 12, data has been retrieved
+        gyro->_state = 12;
     }
 }
 

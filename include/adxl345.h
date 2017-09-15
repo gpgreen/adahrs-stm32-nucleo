@@ -56,6 +56,7 @@ private:
     void second_stage_init();
     static void bus_callback(void* data);
     static void get_data_trigger(void* data);
+    static void retry_send(void* data);
     
     // define away copy constructor and assignment operator
     ADXL345(const ADXL345&);
