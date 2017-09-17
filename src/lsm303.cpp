@@ -29,7 +29,7 @@
 LSM303::LSM303(I2C* bus)
     : _bus(bus), _state(0)
 {
-    _i2c_header.clock_speed = 0;
+    _i2c_header.clock_speed = 100000;
     _i2c_header.first = &_i2c_segments[0];
     _i2c_header.slave_address = LSM_SLAVE_ADDRESS7;
 }

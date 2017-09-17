@@ -16,7 +16,7 @@ WorkQueue g_work_queue;
 // ----------------------------------------------------------------------------
 
 WorkQueue::WorkQueue()
-    : _queue_start(0), _queue_end(0)
+    : _queue_start(0), _queue_end(0), _processed(0)
 {
     // does nothing else
 }
@@ -79,7 +79,7 @@ void WorkQueue::process(void)
     if (_queue_start == queue_end)
         return;
 
-    // get the pointer to callback and fix start of queue
+    // get the callback and fix start of queue
     WorkCallback* cb = &_queue[_queue_start++];
     if (_queue_start == WORK_QUEUE_LENGTH)
         _queue_start = 0;
@@ -89,6 +89,8 @@ void WorkQueue::process(void)
     // won't cause problems
     if (cb->callback != nullptr)
     {
+
+        ++_processed;
 
 #ifdef USE_WORKQUEUE_TRACE
         GPIO_SetBits(GPIOA, GPIO_Pin_3);

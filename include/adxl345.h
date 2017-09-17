@@ -15,20 +15,26 @@
 
 // ----------------------------------------------------------------------------
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 class ADXL345
 {
 public:
     explicit ADXL345(I2C* bus);
 
     // initialize the hardware
-    void begin(int16_t* sign_map, int* axis_map,
+    void begin(int16_t* sign_map, uint8_t* axis_map,
                uint8_t priority, uint8_t subpriority);
 
     // retrieve data, return false if not ready
     bool start_get_sensor_data();
 
     // true when data has been received
-    bool sensor_data_received();
+    bool sensor_data_received()
+    {
+        return _state == 12;
+    }
 
     // convert the retrieved data to corrected values
     void correct_sensor_data();
@@ -66,10 +72,12 @@ private:
     I2C* _bus;
     volatile int _state;
     uint8_t _data[8];
+    uint8_t _axis_map[3];
     int16_t _sign_map[3];
     int16_t _raw_accel[3];
     int _corrected_accel[3];
-    int _axis_map[3];
+    volatile uint32_t _retries;
+    volatile uint32_t _missed_converts;
 
     // i2c transactions
     I2CMasterTxHeader _i2c_header;
@@ -77,6 +85,8 @@ private:
 
     friend void EXTI0_IRQHandler(void);
 };
+
+#pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
 

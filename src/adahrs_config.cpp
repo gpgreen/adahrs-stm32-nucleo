@@ -7,24 +7,26 @@
 
 #include "adahrs_config.h"
 
-// start of flash block defined in linker script
-extern uint32_t __flashb1_start__;
+extern "C" {
+	// start of flash block defined in linker script
+	extern uint32_t __flashb1_start__;
+	// start of factory flash block defined in linker script
+	extern uint32_t __factory_flashb1_start__;
+};
 
 // variables to start of region(s) in flash block
-static uint32_t s_factory_start_address;
-static uint32_t s_flash_start_address;
+static uint32_t* s_factory_start_address = (uint32_t*)&__flashb1_start__;
+static uint32_t* s_flash_start_address = (uint32_t*)(&__factory_flashb1_start__);
 
 // Macro for determining whether FLASH has been initialized
-#define	FGET_FLASH_UNINITIALIZED()	((uint32_t)( *(__IO uint32_t*)(s_flash_start_address) ) == 0xFFFFFFFF)
-#define	FGET_FACTORY_UNINITIALIZED()	((uint32_t)( *(__IO uint32_t*)(s_factory_start_address) ) == 0xFFFFFFFF)
+#define	FGET_FLASH_UNINITIALIZED()	    (*s_flash_start_address == 0xFFFFFFFF)
+#define	FGET_FACTORY_UNINITIALIZED()	(*s_factory_start_address == 0xFFFFFFFF)
 
 // ----------------------------------------------------------------------------
 
 ADAHRSConfig::ADAHRSConfig()
 {
-    // initialize static variables from linker script variable
-    s_flash_start_address = __flashb1_start__;
-    s_factory_start_address = __flashb1_start__ + 2048;
+    // does nothing else
 }
 
 // ----------------------------------------------------------------------------
@@ -46,7 +48,7 @@ int ADAHRSConfig::write_config_to_flash(int write_location_flag)
 {
     FLASH_Status FLASHStatus;
     
-    uint32_t flash_start_address;
+    uint32_t* flash_start_address;
     if (write_location_flag == UM6_USE_CONFIG_ADDRESS)
     {
         flash_start_address = s_flash_start_address;
@@ -64,7 +66,7 @@ int ADAHRSConfig::write_config_to_flash(int write_location_flag)
     // Erase FLASH page in preparation for write operation
     for (int i=0; i<CONFIG_ARRAY_SIZE; ++i)
     {
-        FLASHStatus = FLASH_ErasePage(flash_start_address + 4*i);
+        FLASHStatus = FLASH_ErasePage((uint32_t)(flash_start_address + i));
 		  
         if( FLASHStatus != FLASH_COMPLETE )
         {
@@ -77,7 +79,7 @@ int ADAHRSConfig::write_config_to_flash(int write_location_flag)
     for (int i=0; i<CONFIG_ARRAY_SIZE; ++i)
     {		  
         // Write FLASH data
-        FLASHStatus = FLASH_ProgramWord(flash_start_address + 4*i, _config_reg[i]);
+        FLASHStatus = FLASH_ProgramWord((uint32_t)(flash_start_address + i), _config_reg[i]);
 	
         if( FLASHStatus != FLASH_COMPLETE )
         {
@@ -86,7 +88,7 @@ int ADAHRSConfig::write_config_to_flash(int write_location_flag)
         }
         
         // Make sure new flash memory contents match
-        if (_config_reg[i] != (uint32_t)( *(__IO uint32_t*)(flash_start_address + 4*i)))
+        if (_config_reg[i] != *(flash_start_address + i))
         {
             FLASH_Lock();
             return FLASH_TIMEOUT;
@@ -108,7 +110,7 @@ void ADAHRSConfig::clear_global_data()
 // load all configuration data from flash
 void ADAHRSConfig::load_config_from_flash(int flash_address_flag)
 {
-    uint32_t flash_start_address;
+    uint32_t* flash_start_address;
     if (flash_address_flag == UM6_USE_CONFIG_ADDRESS)
     {
         flash_start_address = s_flash_start_address;
@@ -119,7 +121,7 @@ void ADAHRSConfig::load_config_from_flash(int flash_address_flag)
     }
 
     for (int i=0; i<CONFIG_ARRAY_SIZE; ++i)
-        _config_reg[i] = (uint32_t)(*(__IO uint32_t*)(flash_start_address + 4*i));
+        _config_reg[i] = *(flash_start_address + i);
 }
 
 void ADAHRSConfig::reset_to_factory()

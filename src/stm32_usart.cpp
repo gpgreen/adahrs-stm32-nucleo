@@ -216,6 +216,7 @@ void USART::tx_start()
         _tx_busy = 0;
 	g_work_queue.add_work_irq(USART::tx_start_irq, this);
     }
+    _tx_buf_p = &_tx_buffer[_tx_buffer_start];
 }
 
 // received data?
@@ -258,16 +259,15 @@ void USART::tx_dma_complete(void* ptr)
 {
     USART* uart = reinterpret_cast<USART*>(ptr);
     uart->_tx_busy = 0;
-    // if current buf ptr is the same, then no more data to send
-    if (uart->_tx_buf_p == &uart->_tx_buffer[uart->_tx_buffer_start])
-    {
-        uart->_tx_buffer_start = 0;
-    }
-    else
-    {
+    // copy new data to start of buffer
+    int i = 0;
+    while (uart->_tx_buf_p != &uart->_tx_buffer[uart->_tx_buffer_start])
+        uart->_tx_buffer[i++] = *(uart->_tx_buf_p++);
+    uart->_tx_buffer_start = i;
+    uart->_tx_buf_p = uart->_tx_buffer;
+    if (i > 0)
         // more data to send, send it
         uart->tx_start();
-    }
 }
 
 // called from within IRQ

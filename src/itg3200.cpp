@@ -42,15 +42,15 @@ static ITG3200* s_device_0;
 // ----------------------------------------------------------------------------
 
 ITG3200::ITG3200(I2C* bus)
-    : _bus(bus), _state(0)
+    : _bus(bus), _state(0), _retries(0), _missed_converts(0)
 {
-    _i2c_header.clock_speed = 0;
+    _i2c_header.clock_speed = 100000;
     _i2c_header.first = &_i2c_segments[0];
     _i2c_header.slave_address = ITG_SLAVE_ADDRESS7;
     s_device_0 = this;
 }
 
-void ITG3200::begin(int16_t* sign_map, int* axis_map,
+void ITG3200::begin(int16_t* sign_map, uint8_t* axis_map,
                     uint8_t priority, uint8_t subpriority)
 {
     _sign_map[0] = sign_map[0];
@@ -95,6 +95,7 @@ void ITG3200::begin(int16_t* sign_map, int* axis_map,
 void ITG3200::retry_send(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
+    ++gyro->_retries;
     if (!gyro->_bus->send_receive(&(gyro->_i2c_header), ITG3200::bus_callback, gyro))
     {
         g_work_queue.add_work_irq(ITG3200::retry_send, gyro);
@@ -158,20 +159,22 @@ void ITG3200::init_stage2(void* data)
 void ITG3200::get_data_trigger(void* data)
 {
     ITG3200* gyro = reinterpret_cast<ITG3200*>(data);
-    if (!gyro->start_get_sensor_data())
-    {
-        g_work_queue.add_work_irq(ITG3200::get_data_trigger, gyro);
-    }
+    gyro->start_get_sensor_data();
 }
 
 // go get new sensor data, returns false if not ready to do so
 bool ITG3200::start_get_sensor_data()
 {
-    // check if current state is 10, if so, try to set it to 11
-    // if we fail the bus_callback has changed the state so
-    // return
-    if (!__sync_bool_compare_and_swap(&_state, 10, 11))
-        return false;
+    // if current state is 10, set it to 11
+    // if we fail, try to set it from 12 to 11, which means
+    // the data was never converted after retrieval
+    // if that fails, then return false
+    if (!__sync_bool_compare_and_swap(&_state, 10, 11)) {
+        if (!__sync_bool_compare_and_swap(&_state, 12, 11)) {
+            return false;
+        }
+        ++_missed_converts;
+    }
 
     // set read data register
     _data[0] = ITG_REG_TEMP_OUT_H;
@@ -195,18 +198,15 @@ bool ITG3200::sensor_data_received()
 
 void ITG3200::correct_sensor_data()
 {
-    int x = _axis_map[0];
-    int y = _axis_map[1];
-    int z = _axis_map[2];
-    
     // data is now in the buffer, do conversions
-    _raw_gyro[0] = static_cast<int16_t>((_data[1] << 8) | _data[0]);
-    _raw_gyro[1] = static_cast<int16_t>((_data[3] << 8) | _data[2]);
-    _raw_gyro[2] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
+    _temp = static_cast<int16_t>((_data[1] << 8) | _data[0]);
+    _raw_gyro[0] = static_cast<int16_t>((_data[3] << 8) | _data[2]);
+    _raw_gyro[1] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
+    _raw_gyro[2] = static_cast<int16_t>((_data[7] << 8) | _data[6]);
 
-    _corrected_gyro[0] = _sign_map[0] * _raw_gyro[x];
-    _corrected_gyro[1] = _sign_map[1] * _raw_gyro[y];
-    _corrected_gyro[2] = _sign_map[2] * _raw_gyro[z];
+    _corrected_gyro[0] = _sign_map[0] * _raw_gyro[_axis_map[0]];
+    _corrected_gyro[1] = _sign_map[1] * _raw_gyro[_axis_map[1]];
+    _corrected_gyro[2] = _sign_map[2] * _raw_gyro[_axis_map[2]];
     
     _state = 10;
 }

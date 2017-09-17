@@ -26,7 +26,7 @@ struct I2CMasterTxSegment
 {
     uint32_t flags;
     uint8_t* databuf;
-    int buflen;
+    uint32_t buflen;
     struct I2CMasterTxSegment* next;
 };
 
@@ -56,7 +56,7 @@ public:
 
     // setup flags in Segment based on type of transfer
     void init_segment(I2CMasterTxSegment* segment, I2CTransferType type, uint8_t* databuffer,
-                      int bufferlen, I2CMasterTxSegment* next);
+                      uint32_t bufferlen, I2CMasterTxSegment* next);
     
 private:
 
@@ -74,12 +74,13 @@ private:
 
 private:
     int _devno;
+    volatile int _tx_busy;
     I2C_TypeDef* _i2c;
+    I2C_InitTypeDef _init;
     DMA* _tx_dma;
     DMA* _rx_dma;
     I2CMasterTxHeader* _hdr;
     uint8_t _irqno;
-    volatile bool _tx_busy;
     bool _alt_func;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;

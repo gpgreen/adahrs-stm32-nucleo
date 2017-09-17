@@ -15,13 +15,16 @@
 
 // ----------------------------------------------------------------------------
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 class ITG3200
 {
 public:
     explicit ITG3200(I2C* bus);
 
     // initialize the hardware
-    void begin(int16_t* sign_map, int* axis_map,
+    void begin(int16_t* sign_map, uint8_t* axis_map,
                uint8_t priority, uint8_t subpriority);
 
     // has setup been completed?
@@ -62,10 +65,13 @@ private:
     I2C* _bus;
     volatile int _state;
     uint8_t _data[8];
+    uint8_t _axis_map[3];
+    int16_t _temp;
     int16_t _raw_gyro[3];
     int16_t _sign_map[3];
     int _corrected_gyro[3];
-    int _axis_map[3];
+    volatile uint32_t _retries;
+    volatile uint32_t _missed_converts;
 
     // i2c transactions
     I2CMasterTxHeader _i2c_header;
@@ -73,6 +79,8 @@ private:
 
     friend void EXTI1_IRQHandler(void);
 };
+
+#pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
 

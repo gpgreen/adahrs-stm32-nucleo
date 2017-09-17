@@ -75,7 +75,7 @@ ADAHRSInit init;
 // adjustments for device axes
 // axis_map - which axis is x,y,z
 // sign_map - reverse direction on an axis if -1
-int axis_map[3] = {0, 1, 2};
+uint8_t axis_map[3] = {0, 1, 2};
 int16_t sign_map[3] = {1, 1, 1};
 
 int
@@ -83,6 +83,11 @@ main(int /*argc*/, char* /*argv*/[])
 {
     // At this stage the system clock should have already been configured
     // at high speed.
+    // SYSCLK: 72 MHz
+    // HCLK: 72 MHz
+    // PCLK1: 36 MHz
+    // PCLK2: 72 MHz
+    // ADCCLK: 36 MHz
     
     delaytimer.begin();
 

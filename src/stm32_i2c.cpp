@@ -22,8 +22,9 @@
 // ----------------------------------------------------------------------------
 
 I2C::I2C(int device_no)
-    : _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr), _hdr(nullptr),
-      _irqno(0), _tx_busy(false), _alt_func(false),
+    : _devno(device_no), _tx_busy(0),
+      _tx_dma(nullptr), _rx_dma(nullptr), _hdr(nullptr),
+      _irqno(0), _alt_func(false),
       _send_completion_fn(nullptr), _send_completion_data(nullptr)
 {
     if (device_no == 1)
@@ -120,28 +121,27 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     GPIO_Init(pinport, &GPIO_InitStructure);
 
     /* I2C is configured as follows:
-       - clock 200 KHz
+       - clock 100 KHz
        - i2c mode
        - Duty Cycle 2
        - Ack Enabled
        - 7bit address
     */
-    I2C_InitTypeDef I2C_InitStructure;
-    I2C_StructInit(&I2C_InitStructure);
+    I2C_StructInit(&_init);
 
-    I2C_InitStructure.I2C_ClockSpeed = 40; // 8MHz / 40 / 2 = 100 kHz
-    I2C_InitStructure.I2C_Mode = I2C_Mode_I2C;
-    I2C_InitStructure.I2C_DutyCycle = I2C_DutyCycle_2;
-    I2C_InitStructure.I2C_OwnAddress1 = 0;
-    I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
-    I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
+    _init.I2C_ClockSpeed = 100000;
+    _init.I2C_Mode = I2C_Mode_I2C;
+    _init.I2C_DutyCycle = I2C_DutyCycle_2;
+    _init.I2C_OwnAddress1 = 0;
+    _init.I2C_Ack = I2C_Ack_Enable;
+    _init.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
 
     // configure interrupt vector
     configure_nvic(_irqno, priority, subpriority);
 
     // configure I2C
     I2C_DeInit(_i2c);
-    I2C_Init(_i2c, &I2C_InitStructure);
+    I2C_Init(_i2c, &_init);
 
     // enable I2C
     I2C_Cmd(_i2c, ENABLE);
@@ -150,22 +150,37 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
 bool I2C::send_receive(I2CMasterTxHeader* hdr,
                        void (*completed_fn)(void*), void* data)
 {
-    if (_tx_busy || hdr->first == nullptr)
+    if (hdr->first == nullptr)
         return false;
 
-    _tx_busy = true;
+    // set tx_busy to true, or return false
+    if (!__sync_bool_compare_and_swap(&_tx_busy, 0, 1))
+        return false;
+
+    // if the clock speed doesn't match what came before,
+    // change it
+    if (hdr->clock_speed != _init.I2C_ClockSpeed)
+    {
+        I2C_Cmd(_i2c, DISABLE);
+        _init.I2C_ClockSpeed = hdr->clock_speed;
+        I2C_Init(_i2c, &_init);
+        I2C_Cmd(_i2c, ENABLE);
+    }
+
+    // set data for transmission
     _hdr = hdr;
     _hdr->num_txn_completed = 0;
     _send_completion_fn = completed_fn;
     _send_completion_data = data;
 
+    // start it
     tx_start();
 
     return true;
 }
 
 void I2C::init_segment(I2CMasterTxSegment* segment, I2CTransferType type, uint8_t* databuffer,
-                       int bufferlen, I2CMasterTxSegment* next)
+                       uint32_t bufferlen, I2CMasterTxSegment* next)
 {
     if (type == TransmitNoStop)
         segment->flags = 0;
@@ -189,7 +204,7 @@ void I2C::tx_start_irq(void* data)
 void I2C::tx_start()
 {
     // check for legal starting conditions
-    if (_hdr->first == nullptr || _hdr->first->buflen <= 0
+    if (_hdr->first == nullptr || _hdr->first->buflen == 0
         // if we have already gotten the DMA, no need to run this
         // method again, it may have gotten on the work queue multiple
         // times
@@ -295,7 +310,7 @@ void I2C::priv_rx_complete()
     // trigger the callback if given
     else if (_send_completion_fn != nullptr)
     {
-        _tx_busy = false;
+        _tx_busy = 0;
         _send_completion_fn(_send_completion_data);
     }
 }
@@ -317,7 +332,7 @@ void I2C::priv_tx_complete()
     // trigger the callback if given
     else if (_send_completion_fn != nullptr)
     {
-    	_tx_busy = false;
+    	_tx_busy = 0;
         _send_completion_fn(_send_completion_data);
     }
 }
@@ -394,6 +409,53 @@ void I2C2_EV_IRQHandler(void)
     }
 }
 
+#endif
+
+#if 0
+//
+//
+// function to temporarily disable the I2C port and the run sequence to 
+// unstuck any slave devices that may be hung in read mode waiting for an
+// ACK to come. this recovery sequence consists of a start, >9 clocks and a 
+// stop. This is followed again with another start/stop sequence that permits
+// state machine logic reset in most slave peripheral chips
+//
+
+void i2c_recovery(void)
+{
+    uint32_t loop;
+
+    // Disable I2C0 controller to free the I/O pins
+    PLIB_I2C_Disable(I2C_ID_2);
+    i2c_dly();
+
+    i2c_start();
+    // let SDA be able to go high
+    PLIB_PORTS_PinDirectionInputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_3);   // set SDA2 hig-z (input mode)
+    i2c_dly();
+
+    // loop to make at least 9 clocks
+    for (loop = 0; loop < 9; loop++)
+    {
+        // let SCL go high by pullup
+        PLIB_PORTS_PinDirectionInputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);   // set SCL2 hig-z (input mode)
+        i2c_dly();
+        // pull SCL back low
+        PLIB_PORTS_PinClear(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);               // set SCL2 low output
+        PLIB_PORTS_PinDirectionOutputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);  // set SCL2 low-z output driver
+        i2c_dly();
+    }
+    i2c_stop();
+
+    // run a start stop sequence. this performs a state machine reset
+    // in most slave i2c devices
+    i2c_start();
+    i2c_stop();
+    i2c_dly();
+
+    // re-enable  I2C0 controller
+    PLIB_I2C_Enable(I2C_ID_2);
+}
 #endif
 
 // ----------------------------------------------------------------------------
