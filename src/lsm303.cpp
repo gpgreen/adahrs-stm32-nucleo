@@ -27,7 +27,7 @@
 // ----------------------------------------------------------------------------
 
 LSM303::LSM303(I2C* bus)
-    : _bus(bus), _state(0)
+    : _bus(bus), _state(0), _retries(0), _missed_converts(0)
 {
     _i2c_header.clock_speed = 100000;
     _i2c_header.first = &_i2c_segments[0];
@@ -58,14 +58,34 @@ void LSM303::begin(uint8_t /*priority*/, uint8_t /*subpriority*/)
     _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, &_i2c_segments[3]);
     _bus->init_segment(&_i2c_segments[3], TransmitWithStop, &_data[6], 2, nullptr);
     
-    _bus->send_receive(&_i2c_header, &LSM303::bus_callback, this);
+    if (!_bus->send_receive(&_i2c_header, LSM303::bus_callback, this))
+    {
+        g_work_queue.add_work_irq(LSM303::retry_send, this);
+    }
 }
 
+// static function to call start_get_sensor_data, will add to work
+// queue if not ready to go
+void LSM303::get_data_trigger(void* data)
+{
+    LSM303* lsm = reinterpret_cast<LSM303*>(data);
+    lsm->start_get_sensor_data();
+}
+
+// go get new sensor data, returns false if not ready to do so
 bool LSM303::start_get_sensor_data()
 {
-    if (_state != 2)
-        return false;
-
+    // if current state is 10, set it to 11
+    // if we fail, try to set it from 12 to 11, which means
+    // the data was never converted after retrieval
+    // if that fails, then return false
+    if (!__sync_bool_compare_and_swap(&_state, 10, 11)) {
+        if (!__sync_bool_compare_and_swap(&_state, 12, 11)) {
+            return false;
+        }
+        ++_missed_converts;
+    }
+    
     // set read data register
     _data[0] = LSM_OUT_X_L | 0x80;
 
@@ -74,14 +94,24 @@ bool LSM303::start_get_sensor_data()
     _bus->init_segment(&_i2c_segments[0], TransmitNoStop, &_data[0], 1, &_i2c_segments[1]);
     _bus->init_segment(&_i2c_segments[1], ReceiveWithStop, &_data[0], 6, nullptr);
 
-    _bus->send_receive(&_i2c_header, &LSM303::bus_callback, this);
+    if (!_bus->send_receive(&_i2c_header, LSM303::bus_callback, this))
+    {
+        g_work_queue.add_work_irq(LSM303::retry_send, this);
+    }
 
     return true;
 }
 
-bool LSM303::sensor_data_received()
+// try to send current i2c transfer setup, if i2c is busy, then schedule it for
+// later
+void LSM303::retry_send(void* data)
 {
-    return _state == 3;
+    LSM303* lsm = reinterpret_cast<LSM303*>(data);
+    ++lsm->_retries;
+    if (!lsm->_bus->send_receive(&(lsm->_i2c_header), LSM303::bus_callback, lsm))
+    {
+        g_work_queue.add_work_irq(LSM303::retry_send, lsm);
+    }
 }
 
 void LSM303::get_sensor_data(uint8_t* buf)
@@ -89,7 +119,7 @@ void LSM303::get_sensor_data(uint8_t* buf)
     for (int i=0; i<6; i++)
         buf[i] = _data[i];
 
-    _state = 2;
+    _state = 10;
 }
 
 /**
@@ -98,9 +128,9 @@ void LSM303::get_sensor_data(uint8_t* buf)
  *
  * state 0 - state at startup, transitions to 1 when begin is called
  * state 1 - completion of control register setup
- *       -> 2
- * state 2 - completion of data retrieval
- *       -> 3
+ *       -> 10
+ * state 11 - completion of data retrieval
+ *       -> 12
  */
 void LSM303::bus_callback(void *data)
 {
@@ -108,13 +138,13 @@ void LSM303::bus_callback(void *data)
 
     if (lsm->_state == 1)
     {
-        // set state to 2, completed initialization
-        lsm->_state = 2;
+        // set state to 10, completed initialization
+        lsm->_state = 10;
     }
-    else if (lsm->_state == 2)
+    else if (lsm->_state == 11)
     {
-        // set state to 3, data has been retrieved
-        lsm->_state = 3;
+        // set state to 12, data has been retrieved
+        lsm->_state = 12;
     }
 }
 

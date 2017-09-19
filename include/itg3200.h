@@ -44,7 +44,7 @@ public:
         return _raw_gyro[axis];
     }
 
-    int get_corrected_gyro(int axis)
+    int16_t get_corrected_gyro(int axis)
     {
         return _corrected_gyro[axis];
     }
@@ -69,7 +69,7 @@ private:
     int16_t _temp;
     int16_t _raw_gyro[3];
     int16_t _sign_map[3];
-    int _corrected_gyro[3];
+    int16_t _corrected_gyro[3];
     volatile uint32_t _retries;
     volatile uint32_t _missed_converts;
 

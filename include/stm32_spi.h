@@ -15,6 +15,9 @@
 
 // ----------------------------------------------------------------------------
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 class SPI
 {
 public:
@@ -41,15 +44,14 @@ private:
 private:
     int _devno;
     SPI_TypeDef* _spi;
+    uint8_t _irqno;
     DMA* _tx_dma;
     DMA* _rx_dma;
-    // transmit buffer members
-    volatile uint8_t* _tx_buffer;
-    volatile int _buffer_len;
-    uint8_t _irqno;
-    volatile bool _tx_busy;
     bool _alt_func;
     bool _use_ss_hardware;
+    volatile uint8_t* _tx_buffer;
+    volatile int _buffer_len;
+    volatile uint32_t _tx_busy;
     volatile int _flags;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;
@@ -58,6 +60,8 @@ private:
     friend void SPI1_IRQHandler(void);
     friend void SPI2_IRQHandler(void);
 };
+
+#pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
 // hardware instances

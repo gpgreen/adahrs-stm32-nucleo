@@ -107,7 +107,8 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     }
 
     // if using alternate, do the remap
-    if (_alt_func) {
+    if (_alt_func)
+    {
         GPIO_PinRemapConfig(GPIO_Remap_I2C1, ENABLE);
     }
     
