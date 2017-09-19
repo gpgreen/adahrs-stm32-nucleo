@@ -19,13 +19,16 @@ ADAHRSInit::ADAHRSInit()
     // does nothing else
 }
 
-void ADAHRSInit::begin(ADAHRSConfig* config)
+void ADAHRSInit::begin(ADAHRSConfig* config, ADAHRSSensorData* state)
 {
     // assign all priority bits to preempt, none to subpriority
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 
     // initialize config from Flash
     config->begin();
+
+    // initialize state from config
+    state->begin(config);
     
     // configure DMA channels
     DMA1Channel2.begin(DMA1_IRQ_PRIORITY, 0);
@@ -59,10 +62,10 @@ void ADAHRSInit::configure_led()
     GPIO_InitTypeDef GPIO_InitStructure;
 
     // Configure pin in output push/pull mode
-    GPIO_InitStructure.GPIO_Pin = LED_PIN_NUMBER;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
-    GPIO_Init(LED_PORT_NUMBER, &GPIO_InitStructure);
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
 
     // Start with led turned off
     led_off();

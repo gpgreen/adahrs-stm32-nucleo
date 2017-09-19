@@ -43,6 +43,26 @@ void ADAHRSConfig::begin()
     }
 }
 
+uint32_t ADAHRSConfig::get_register(int addr)
+{
+    if (addr >= DATA_REG_START_ADDRESS && addr < COMMAND_START_ADDRESS)
+        return _data_reg[addr - DATA_REG_START_ADDRESS];
+    else if (addr < COMMAND_START_ADDRESS)
+        return _config_reg[addr];
+    else
+        while(1);
+}
+
+void ADAHRSConfig::set_register(int addr, uint32_t data)
+{
+    if (addr >= DATA_REG_START_ADDRESS && addr < COMMAND_START_ADDRESS)
+        _data_reg[addr - DATA_REG_START_ADDRESS] = data;
+    else if (addr < COMMAND_START_ADDRESS)
+        _config_reg[addr] = data;
+    else
+        while(1);
+}
+
 // write all configuration data to flash memory
 int ADAHRSConfig::write_config_to_flash(int write_location_flag)
 {

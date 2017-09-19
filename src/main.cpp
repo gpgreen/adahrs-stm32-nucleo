@@ -12,6 +12,7 @@
 
 #include "adahrs_init.h"
 #include "adahrs_config.h"
+#include "adahrs_states.h"
 #include "stm32_delaytimer.h"
 #include "stm32_usart.h"
 #include "stm32_i2c.h"
@@ -71,6 +72,7 @@ int main(int, char**);
 
 ADAHRSConfig config;
 ADAHRSInit init;
+ADAHRSSensorData state;
 
 // adjustments for device axes
 // axis_map - which axis is x,y,z
@@ -92,8 +94,8 @@ main(int /*argc*/, char* /*argv*/[])
     delaytimer.begin();
 
     // initialize devices
-    init.begin(&config);
-
+    init.begin(&config, &state);
+    
     // start the accel sensor
     ADXL345 adxl(&i2c1);
     adxl.begin(sign_map, axis_map, ADXL_IRQ_PRIORITY, 0);

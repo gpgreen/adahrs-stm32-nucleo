@@ -29,7 +29,7 @@ public:
 
     // get or set a register
     uint32_t get_register(int addr);
-    uint32_t set_register(int addr, uint32_t data);
+    void set_register(int addr, uint32_t data);
 
     // reset configuration data to factory values
     void reset_to_factory();
