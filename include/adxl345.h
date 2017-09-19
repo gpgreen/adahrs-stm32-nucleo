@@ -46,17 +46,11 @@ public:
     }
 
     // the corrected acceleration values per axis
-    int get_corrected_accel(int axis)
+    int16_t get_corrected_accel(int axis)
     {
         return _corrected_accel[axis];
     }
 
-    // real acceleration values per axis
-    float get_accel(int axis)
-    {
-        return static_cast<float>(_corrected_accel[axis]);
-    }
-    
 private:
 
     void init_stage2();
@@ -75,7 +69,7 @@ private:
     uint8_t _axis_map[3];
     int16_t _sign_map[3];
     int16_t _raw_accel[3];
-    int _corrected_accel[3];
+    int16_t _corrected_accel[3];
     volatile uint32_t _retries;
     volatile uint32_t _missed_converts;
 

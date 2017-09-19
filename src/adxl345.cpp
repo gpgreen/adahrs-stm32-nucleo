@@ -7,7 +7,6 @@
 
 #include "adxl345.h"
 #include "work_queue.h"
-#include "stm32_delaytimer.h"
 
 // ----------------------------------------------------------------------------
 
@@ -117,10 +116,10 @@ void ADXL345::begin(int16_t* sign_map, uint8_t* axis_map,
     _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 2, &_i2c_segments[2]);
     _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
     
-    _bus->send_receive(&_i2c_header, ADXL345::bus_callback, this);
-
-    // now sleep for 50ms
-    delaytimer.sleep(50);
+    if (!_bus->send_receive(&_i2c_header, ADXL345::bus_callback, this))
+    {
+        g_work_queue.add_work_irq(ADXL345::retry_send, this);
+    }
 }
 
 void ADXL345::init_stage2()
@@ -144,7 +143,10 @@ void ADXL345::init_stage2()
     _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 2, &_i2c_segments[2]);
     _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
     
-    _bus->send_receive(&_i2c_header, ADXL345::bus_callback, this);
+    if (!_bus->send_receive(&_i2c_header, ADXL345::bus_callback, this))
+    {
+        g_work_queue.add_work_irq(ADXL345::retry_send, this);
+    }
 }
 
 // static function to call start_get_sensor_data, will add to work
@@ -205,17 +207,17 @@ void ADXL345::correct_sensor_data()
     _raw_accel[1] = static_cast<int16_t>((_data[3] << 8) | _data[2]);
     _raw_accel[2] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
 
-    _corrected_accel[0] = _sign_map[0] * _raw_accel[_axis_map[0]];
-    _corrected_accel[1] = _sign_map[1] * _raw_accel[_axis_map[1]];
-    _corrected_accel[2] = _sign_map[2] * _raw_accel[_axis_map[2]];
+    _corrected_accel[0] = static_cast<int16_t>(_sign_map[0] * _raw_accel[_axis_map[0]]);
+    _corrected_accel[1] = static_cast<int16_t>(_sign_map[1] * _raw_accel[_axis_map[1]]);
+    _corrected_accel[2] = static_cast<int16_t>(_sign_map[2] * _raw_accel[_axis_map[2]]);
     
     _state = 10;
 }
 
 /**
  * callback for i2c bus, normally called from interrupt context
- * state machine
  *
+ * state machine
  * state 0 - state at startup, transitions to 1 when begin is called
  * state 1 - completion of first set of control register setups, do second stage init
  *       -> 2

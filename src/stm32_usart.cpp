@@ -200,7 +200,8 @@ void USART::tx_start()
     DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
 
     // check the TC bit, if low, then wait until it is high, then start the new transmission
-    if (USART_GetFlagStatus(_uart, USART_FLAG_TC) == RESET) {
+    if (USART_GetFlagStatus(_uart, USART_FLAG_TC) == RESET)
+    {
         _tx_busy = 0;
 	g_work_queue.add_work_irq(USART::tx_start_irq, this);
         return;
@@ -241,9 +242,11 @@ unsigned int USART::get_received_data(uint8_t* buf, int buflen)
         buf[i] = _rx_buffer[i];
     }
     _rx_buffer_start -= sz;
-    if (sz < RX_BUFFER_SIZE) {
+    if (sz < RX_BUFFER_SIZE)
+    {
         volatile uint8_t* bufptr = &_rx_buffer[sz];
-        for (int i=RX_BUFFER_SIZE; i>sz; --i,++bufptr) {
+        for (int i=RX_BUFFER_SIZE; i>sz; --i,++bufptr)
+        {
             _rx_buffer[RX_BUFFER_SIZE - i] = *bufptr;
         }
     }
@@ -287,7 +290,8 @@ USART usart1(1);
 
 void USART1_IRQHandler(void)
 {
-    if (USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != RESET) {
+    if (USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != RESET)
+    {
         usart1.priv_rx_complete();
         // clear the RXNE bit in the SR register (not needed if data read)
         USART_ClearFlag(USART1, USART_FLAG_RXNE);
@@ -302,7 +306,8 @@ USART usart2(2);
 
 void USART2_IRQHandler(void)
 {
-    if (USART_GetFlagStatus(USART2, USART_FLAG_RXNE) != RESET) {
+    if (USART_GetFlagStatus(USART2, USART_FLAG_RXNE) != RESET)
+    {
         usart2.priv_rx_complete();
         // clear the RXNE bit in the SR register (not needed if data read)
         USART_ClearFlag(USART2, USART_FLAG_RXNE);
@@ -317,7 +322,8 @@ USART usart3(3);
 
 void USART3_IRQHandler(void)
 {
-    if (USART_GetFlagStatus(USART3, USART_FLAG_RXNE) != RESET) {
+    if (USART_GetFlagStatus(USART3, USART_FLAG_RXNE) != RESET)
+    {
         usart3.priv_rx_complete();
         // clear the RXNE bit in the SR register (not needed if data read)
         USART_ClearFlag(USART3, USART_FLAG_RXNE);

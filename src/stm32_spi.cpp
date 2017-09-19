@@ -19,8 +19,8 @@
 
 SPI::SPI(int device_no)
     : _devno(device_no), _spi(nullptr), _tx_dma(nullptr), _rx_dma(nullptr),
-      _tx_buffer(nullptr), _buffer_len(0),
-      _tx_busy(false), _alt_func(false), _use_ss_hardware(true), _flags(0),
+      _alt_func(false), _use_ss_hardware(true), 
+      _tx_buffer(nullptr), _buffer_len(0), _tx_busy(0), _flags(0),
       _send_completion_fn(nullptr), _send_completion_data(nullptr),
       _slave_select_fn(nullptr)
 {
@@ -208,10 +208,9 @@ void SPI::begin(bool use_alternate,
 
 bool SPI::send(uint8_t* txdata, int buflen, void (*completed_fn)(void*), void* data)
 {
-    if (_tx_busy)
+    if (!__sync_bool_compare_and_swap(&_tx_busy, 0, 1))
         return false;
 
-    _tx_busy = true;
     _tx_buffer = txdata;
     _buffer_len = buflen;
     _send_completion_fn = completed_fn;
@@ -261,7 +260,8 @@ void SPI::tx_start()
     DMA_rxInit.DMA_DIR = DMA_DIR_PeripheralSRC;
     
     // check that BSY flag is cleared, before starting the new transmission
-    if (SPI_I2S_GetFlagStatus(_spi, SPI_I2S_FLAG_BSY) != RESET) {
+    if (SPI_I2S_GetFlagStatus(_spi, SPI_I2S_FLAG_BSY) != RESET)
+    {
 	g_work_queue.add_work_irq(SPI::tx_start_irq, this);
         return;
     }
@@ -293,7 +293,7 @@ void SPI::tx_start()
 void SPI::rx_dma_complete(void* data)
 {
     SPI* spi = reinterpret_cast<SPI*>(data);
-    spi->_tx_busy = false;
+    spi->_tx_busy = 0;
 
     // call slave-select-off if enabled
     if (!spi->_use_ss_hardware)
@@ -311,7 +311,7 @@ void SPI::rx_dma_complete(void* data)
 
 void SPI::priv_rx_complete()
 {
-    _tx_busy = false;
+    _tx_busy = 0;
     // disable SPI
     SPI_Cmd(_spi, DISABLE);
 }

@@ -26,14 +26,19 @@ public:
     bool start_get_sensor_data();
 
     // true when data has been received
-    bool sensor_data_received();
+    bool sensor_data_received()
+    {
+        return _state == 12;
+    }
 
     // copy the retrieved data to a buffer (length = 6)
     void get_sensor_data(uint8_t* buf);
     
 private:
 
-    static void bus_callback(void *data);
+    static void bus_callback(void* data);
+    static void get_data_trigger(void* data);
+    static void retry_send(void* data);
     
     // define away copy constructor and assignment operator
     LSM303(const LSM303&);
@@ -43,6 +48,8 @@ private:
     I2C* _bus;
     volatile int _state;
     uint8_t _data[8];
+    volatile uint32_t _retries;
+    volatile uint32_t _missed_converts;
 
     // i2c transactions
     I2CMasterTxHeader _i2c_header;

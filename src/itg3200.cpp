@@ -42,7 +42,7 @@ static ITG3200* s_device_0;
 // ----------------------------------------------------------------------------
 
 ITG3200::ITG3200(I2C* bus)
-    : _bus(bus), _state(0), _retries(0), _missed_converts(0)
+    : _bus(bus), _state(0), _temp(0), _retries(0), _missed_converts(0)
 {
     _i2c_header.clock_speed = 100000;
     _i2c_header.first = &_i2c_segments[0];
@@ -204,9 +204,9 @@ void ITG3200::correct_sensor_data()
     _raw_gyro[1] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
     _raw_gyro[2] = static_cast<int16_t>((_data[7] << 8) | _data[6]);
 
-    _corrected_gyro[0] = _sign_map[0] * _raw_gyro[_axis_map[0]];
-    _corrected_gyro[1] = _sign_map[1] * _raw_gyro[_axis_map[1]];
-    _corrected_gyro[2] = _sign_map[2] * _raw_gyro[_axis_map[2]];
+    _corrected_gyro[0] = static_cast<int16_t>(_sign_map[0] * _raw_gyro[_axis_map[0]]);
+    _corrected_gyro[1] = static_cast<int16_t>(_sign_map[1] * _raw_gyro[_axis_map[1]]);
+    _corrected_gyro[2] = static_cast<int16_t>(_sign_map[2] * _raw_gyro[_axis_map[2]]);
     
     _state = 10;
 }

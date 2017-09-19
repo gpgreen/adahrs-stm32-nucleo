@@ -97,10 +97,14 @@ main(int /*argc*/, char* /*argv*/[])
     // start the accel sensor
     ADXL345 adxl(&i2c1);
     adxl.begin(sign_map, axis_map, ADXL_IRQ_PRIORITY, 0);
+    // now sleep for 50ms
+    delaytimer.sleep(50);
     
     // start the gyro sensor
     ITG3200 gyro(&i2c1);
     gyro.begin(sign_map, axis_map, ITG_IRQ_PRIORITY, 0);
+    // now sleep for 100ms
+    delaytimer.sleep(100);
 
     // Infinite loop
     usart1.transmit("hello!\r\n", 8);
