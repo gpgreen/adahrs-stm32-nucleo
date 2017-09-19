@@ -10,7 +10,7 @@
 #include "adahrs_definitions.h"
 #include "isr_def.h"
 
-#define MS_PER_TICK                     5
+#define MS_PER_TICK                     100
 
 class TimerList
 {
@@ -34,14 +34,41 @@ TimerList::TimerList()
 
 void TimerList::insert(Timer* t)
 {
+    uint32_t ccount = t->length;
     if (head == nullptr)
     {
         head = t;
         t->next = nullptr;
-        t->count = t->length;
     }
     else
     {
+        if (head->count > ccount)
+        {
+            t->next = head;
+            head = t;
+        }
+        else
+        {
+            Timer* prev = head;
+            Timer* cur = head->next;
+            ccount -= head->count;
+            while (cur != nullptr && cur->count <= ccount)
+            {
+                ccount -= cur->count;
+                prev = cur;
+                cur = cur->next;
+            }
+            prev->next = t;
+            t->next = cur;
+        }
+    }
+    t->count = ccount;
+    Timer* cur = t->next;
+    while (cur != nullptr)
+    {
+        if (cur->count > 0)
+            cur->count -= ccount;
+        cur = cur->next;
     }
 }
 
@@ -57,8 +84,13 @@ void TimerList::remove(Timer* t)
     {
         if (prev->next == t)
         {
+            // add the count to following item
+            uint32_t ccount = prev->next->count;
+            // remove t from the list
             prev->next = t->next;
-            return;
+            if (t->next != nullptr)
+                t->next->count += ccount;
+            break;
         }
     }
 }
@@ -120,7 +152,7 @@ Timer::Timer()
 }
 
 int
-Timer::start(unsigned int millis, TimerType timer_type)
+Timer::start(unsigned int microseconds, TimerType timer_type)
 {
     if (state != Idle)
     {
@@ -130,7 +162,7 @@ Timer::start(unsigned int millis, TimerType timer_type)
     // initialize the software timer
     state = Active;
     type = timer_type;
-    length = millis / MS_PER_TICK;
+    length = microseconds / MS_PER_TICK;
     
     // add the timer to the active timer list
     timer_list.insert(this);

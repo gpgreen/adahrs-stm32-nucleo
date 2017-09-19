@@ -13,7 +13,7 @@
 #include "adahrs_init.h"
 #include "adahrs_config.h"
 #include "adahrs_states.h"
-#include "stm32_delaytimer.h"
+#include "stm32_timer.h"
 #include "stm32_usart.h"
 #include "stm32_i2c.h"
 #include "adxl345.h"
@@ -91,22 +91,24 @@ main(int /*argc*/, char* /*argv*/[])
     // PCLK2: 72 MHz
     // ADCCLK: 36 MHz
     
-    delaytimer.begin();
-
     // initialize devices
     init.begin(&config, &state);
     
+    Timer t0;
+
     // start the accel sensor
     ADXL345 adxl(&i2c1);
     adxl.begin(sign_map, axis_map, ADXL_IRQ_PRIORITY, 0);
     // now sleep for 50ms
-    delaytimer.sleep(50);
+    t0.start(50000, Timer::OneShot);
+    t0.wait_for();
     
     // start the gyro sensor
     ITG3200 gyro(&i2c1);
     gyro.begin(sign_map, axis_map, ITG_IRQ_PRIORITY, 0);
     // now sleep for 100ms
-    delaytimer.sleep(100);
+    t0.start(100000, Timer::OneShot);
+    t0.wait_for();
 
     // Infinite loop
     usart1.transmit("hello!\r\n", 8);
@@ -116,10 +118,13 @@ main(int /*argc*/, char* /*argv*/[])
     while (1)
     {
     	led_on();
-        delaytimer.sleep(seconds == 0 ? TIMER_FREQUENCY_HZ : BLINK_ON_TICKS);
+        t0.start(seconds == 0 ? TIMER_FREQUENCY_HZ : BLINK_ON_TICKS);
+        t0.wait_for();
 
         led_off();
-        delaytimer.sleep(BLINK_OFF_TICKS);
+        t0.start(BLINK_OFF_TICKS);
+        t0.wait_for();
+
         if (adxl.sensor_data_received())
         {
             adxl.correct_sensor_data();
