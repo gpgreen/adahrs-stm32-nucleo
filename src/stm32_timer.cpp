@@ -10,8 +10,14 @@
 #include "adahrs_definitions.h"
 #include "isr_def.h"
 
+// ----------------------------------------------------------------------------
 #define MS_PER_TICK                     100
+// ----------------------------------------------------------------------------
 
+/**
+ * class to keep lists of timers
+ * the list is ordered from soonest to expire to latest
+ */
 class TimerList
 {
 public:
@@ -21,6 +27,9 @@ public:
     void remove(Timer* t);
     
     void tick();
+
+    void start_critical_section();
+    void end_critical_section();
     
 private:
     Timer* head;
@@ -32,37 +41,49 @@ TimerList::TimerList()
     // does nothing else
 }
 
+// === START critical section
+void TimerList::start_critical_section()
+{
+    // critical section created by setting BASEPRI to a level
+    // above masked irq's
+    __set_BASEPRI(TIMER_IRQ_MASKING);
+}
+
+// === END critical section
+void TimerList::end_critical_section()
+{
+    __set_BASEPRI(0U);
+}
+
 void TimerList::insert(Timer* t)
 {
-    uint32_t ccount = t->length;
-    if (head == nullptr)
+    // find the correct spot to insert timer
+    uint32_t ccount = t->length; // this will become the count for the inserted timer
+                                 // also it determines where the timer fits into list
+
+    start_critical_section();
+    
+    if (head == nullptr || head->count > ccount)
     {
+        t->next = head;
         head = t;
-        t->next = nullptr;
     }
     else
     {
-        if (head->count > ccount)
+        Timer* prev = head;
+        Timer* cur = head->next;
+        ccount -= head->count;
+        while (cur != nullptr && cur->count <= ccount)
         {
-            t->next = head;
-            head = t;
+            ccount -= cur->count;
+            prev = cur;
+            cur = cur->next;
         }
-        else
-        {
-            Timer* prev = head;
-            Timer* cur = head->next;
-            ccount -= head->count;
-            while (cur != nullptr && cur->count <= ccount)
-            {
-                ccount -= cur->count;
-                prev = cur;
-                cur = cur->next;
-            }
-            prev->next = t;
-            t->next = cur;
-        }
+        prev->next = t;
+        t->next = cur;
     }
     t->count = ccount;
+    // adjust count of all later timers
     Timer* cur = t->next;
     while (cur != nullptr)
     {
@@ -70,35 +91,47 @@ void TimerList::insert(Timer* t)
             cur->count -= ccount;
         cur = cur->next;
     }
+
+    end_critical_section();
 }
 
 void TimerList::remove(Timer* t)
 {
+    start_critical_section();
+    
     if (head == t)
     {
         head = t->next;
-        return;
     }
-    Timer* prev = head;
-    while (prev->next != nullptr)
+    else
     {
-        if (prev->next == t)
+        Timer* prev = head;
+        while (prev->next != nullptr)
         {
-            // add the count to following item
-            uint32_t ccount = prev->next->count;
-            // remove t from the list
-            prev->next = t->next;
-            if (t->next != nullptr)
-                t->next->count += ccount;
-            break;
+            if (prev->next == t)
+            {
+                // add the count to following item
+                uint32_t ccount = prev->next->count;
+                // remove t from the list
+                prev->next = t->next;
+                if (t->next != nullptr)
+                    t->next->count += ccount;
+                break;
+            }
         }
     }
+
+    end_critical_section();
 }
 
+// called from IRQ
 void TimerList::tick()
 {
     if (head == nullptr)
         return;
+
+    start_critical_section();
+
     if (--head->count == 0) {
         head->state = Timer::Done;
         head = head->next;
@@ -108,10 +141,16 @@ void TimerList::tick()
             head = head->next;
         }
     }
+
+    end_critical_section();
 }
+
+// ----------------------------------------------------------------------------
 
 // declare a static timer list
 static TimerList timer_list;
+
+// ----------------------------------------------------------------------------
 
 Timer::Timer()
     : state(Idle), type(OneShot), length(0), count(0), next(nullptr)
@@ -208,6 +247,7 @@ Timer::cancel()
     state = Idle;
 }
 
+// ----------------------------------------------------------------------------
 
 // IRQ for timer
 void TIM3_IRQHandler(void)
@@ -220,3 +260,5 @@ void TIM3_IRQHandler(void)
         TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
     }
 }
+
+// ----------------------------------------------------------------------------

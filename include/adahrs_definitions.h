@@ -32,6 +32,8 @@
                                                  in work queue critical section */
 #define USART_IRQ_MASKING                0x50 /* which irq priorities are masked 
                                                  in work queue critical section */
+#define TIMER_IRQ_MASKING                0x10 /* which irq priorities are masked 
+                                                 in timer list critical sections */
 
 // ----------------------------------------------------------------------------
 // size of work queue buffer
@@ -45,14 +47,14 @@
 #define RX_BUFFER_SIZE                   64
 
 // ----------------------------------------------------------------------------
-// which USART in use
+// which USART(s) in use
 // ----------------------------------------------------------------------------
 #define USART1_USED
 //#define USART2_USED
 //#define USART3_USED
 
 // ----------------------------------------------------------------------------
-// which DMA in use
+// which DMA(s) in use
 // ----------------------------------------------------------------------------
 //#define DMA1_CHANNEL1_USED
 #define DMA1_CHANNEL2_USED
@@ -73,7 +75,7 @@
 #endif // STM32F10X_HD_VL
 
 // ----------------------------------------------------------------------------
-// which SPI in use
+// which SPI(s) in use
 // ----------------------------------------------------------------------------
 #define SPI1_USED
 //#define SPI2_USED
@@ -85,7 +87,7 @@
 #endif // STM32F10X_HD_VL
 
 // ----------------------------------------------------------------------------
-// which I2C in use
+// which I2C(s) in use
 // ----------------------------------------------------------------------------
 #define I2C1_USED
 //#define I2C2_USED

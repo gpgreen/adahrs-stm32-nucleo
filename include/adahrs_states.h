@@ -93,7 +93,7 @@ typedef struct __Raw_sensor_data
 
 // Structure for storing ADAHRS states and other data related to state computation
 // This structure is, in a way, redundant because all this data is also stored in the
-// UM6_config or UM6_data structures.  However, in the config and data strucutres, the 
+// UM6_config or UM6_data structures.  However, in the config and data structures, the
 // data is packaged as UInt32 entries into an array for convenience with communication.
 // To use the data as floats, special formatting is required.  This structure provides
 // a place to store that data in the expected format, which makes accessing it easier.
@@ -227,11 +227,11 @@ public:
 
     void begin(ADAHRSConfig* config);
 
-    void copy_states_to_data(ADAHRSConfig* config);
+    void copy_states_to_config(ADAHRSConfig* config);
     
 private:
 
-    void copy_config_array_to_states(ADAHRSConfig* config);
+    void copy_config_to_states(ADAHRSConfig* config);
 
     // define away copy constructor and assignment operator
     ADAHRSSensorData(const ADAHRSSensorData&);
@@ -243,10 +243,6 @@ private:
 #pragma GCC diagnostic pop
 
 #if 0
-extern RawSensorData gSensorData;
-extern AHRS_state_data gStateData;
-
-extern uint8_t gEKF_mode;
 
 // Function declarations
 void EKF_Init( AHRS_state_data* estimated_states );
@@ -260,11 +256,6 @@ void ConvertRawSensorData( AHRS_state_data* estimated_states, RawSensorData* sen
 
 #define		MAG_UPDATE			0
 #define		ACCEL_UPDATE		1
-
-// EKF "mode" stored in the global variable gEKF_mode
-#define		EKF_MODE_QUAT		0
-#define		EKF_MODE_EULER		1
-
 
 void compute_euler_angles( AHRS_state_data* estimated_states );
 

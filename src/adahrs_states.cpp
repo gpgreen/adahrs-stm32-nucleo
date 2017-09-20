@@ -12,16 +12,17 @@
 // ----------------------------------------------------------------------------
 
 ADAHRSSensorData::ADAHRSSensorData()
+	: _mode(MODE_QUATERNION)
 {
     // does nothing else
 }
 
 void ADAHRSSensorData::begin(ADAHRSConfig* config)
 {
-    copy_config_array_to_states(config);
+    copy_config_to_states(config);
 }
 
-void ADAHRSSensorData::copy_config_array_to_states(ADAHRSConfig* config)
+void ADAHRSSensorData::copy_config_to_states(ADAHRSConfig* config)
 {
     uint32_t v;
     
@@ -251,7 +252,7 @@ void ADAHRSSensorData::copy_config_array_to_states(ADAHRSConfig* config)
 	 
 }
 
-void ADAHRSSensorData::copy_states_to_data(ADAHRSConfig* config)
+void ADAHRSSensorData::copy_states_to_config(ADAHRSConfig* config)
 {
     int16_t converted_data1;
     int16_t converted_data2;
