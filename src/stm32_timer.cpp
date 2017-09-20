@@ -102,7 +102,7 @@ void TimerList::tick()
     if (--head->count == 0) {
         head->state = Timer::Done;
         head = head->next;
-        while (head != nullptr && head->length == 0)
+        while (head != nullptr && head->count == 0)
         {
             head->state = Timer::Done;
             head = head->next;

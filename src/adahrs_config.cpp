@@ -7,11 +7,12 @@
 
 #include "adahrs_config.h"
 
-extern "C" {
-	// start of flash block defined in linker script
-	extern uint32_t __flashb1_start__;
-	// start of factory flash block defined in linker script
-	extern uint32_t __factory_flashb1_start__;
+extern "C"
+{
+    // start of flash block defined in linker script
+    extern uint32_t __flashb1_start__;
+    // start of factory flash block defined in linker script
+    extern uint32_t __factory_flashb1_start__;
 };
 
 // variables to start of region(s) in flash block
@@ -19,7 +20,7 @@ static uint32_t* s_factory_start_address = (uint32_t*)&__flashb1_start__;
 static uint32_t* s_flash_start_address = (uint32_t*)(&__factory_flashb1_start__);
 
 // Macro for determining whether FLASH has been initialized
-#define	FGET_FLASH_UNINITIALIZED()	    (*s_flash_start_address == 0xFFFFFFFF)
+#define	FGET_FLASH_UNINITIALIZED()	(*s_flash_start_address == 0xFFFFFFFF)
 #define	FGET_FACTORY_UNINITIALIZED()	(*s_factory_start_address == 0xFFFFFFFF)
 
 // ----------------------------------------------------------------------------

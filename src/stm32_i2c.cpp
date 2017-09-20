@@ -438,19 +438,60 @@ void I2C2_EV_IRQHandler(void)
 
 #endif
 
-void i2c_start();
-void i2c_stop();
-void i2c_dly();
+// delay a bit using mov instruction
+static void i2c_dly()
+{
+    for (int counter=0; counter<720; ++counter)
+    {
+        asm volatile("mov r0, r0");
+    }
+}
 
-//
-//
-// function to temporarily disable the I2C port and the run sequence to 
-// unstuck any slave devices that may be hung in read mode waiting for an
+// put a start condition on the i2c bus
+static void i2c_start(GPIO_TypeDef* port, uint16_t sda, uint16_t scl)
+{
+    // i2c_start, SDA 1, SCL hi-z, dly, SDA 1->0 dly, SCL 0, dly
+    // SDA hi
+    GPIO_WriteBit(port, sda, Bit_SET);
+    // SCL hi-z
+    GPIO_WriteBit(port, scl, Bit_SET);
+    i2c_dly();
+    
+    // SDA low
+    GPIO_WriteBit(port, sda, Bit_RESET);
+    i2c_dly();
+
+    // SCL lo
+    GPIO_WriteBit(port, scl, Bit_RESET);
+    i2c_dly();
+}
+
+// put a stop condition on the i2c bus
+static void i2c_stop(GPIO_TypeDef* port, uint16_t sda, uint16_t scl)
+{
+    // i2c_stop, SCL 0, dly, SDA 0, dly, 0->1 on SCL, dly, then 0->1 on SDA
+
+    // SCL lo
+    GPIO_WriteBit(port, scl, Bit_RESET);
+    i2c_dly();
+
+    // SDA low
+    GPIO_WriteBit(port, sda, Bit_RESET);
+    i2c_dly();
+    
+    // SCL hi-z
+    GPIO_WriteBit(port, scl, Bit_SET);
+    i2c_dly();
+
+    // SDA hi
+    GPIO_WriteBit(port, sda, Bit_SET);
+}
+
+// function to temporarily disable the I2C port and then run sequence to 
+// unstick any slave devices that may be hung in read mode waiting for an
 // ACK to come. this recovery sequence consists of a start, >9 clocks and a 
 // stop. This is followed again with another start/stop sequence that permits
 // state machine logic reset in most slave peripheral chips
-//
-
 bool I2C::bus_recovery()
 {
     // set _tx_busy to true, or return false
@@ -466,7 +507,7 @@ bool I2C::bus_recovery()
     
     // Disable I2C controller to free the I/O pins
     I2C_Cmd(_i2c, DISABLE);
-//    i2c_dly();
+    i2c_dly();
 
     // set the pins for manual control
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -480,44 +521,39 @@ bool I2C::bus_recovery()
     // Configure I2C SCL & SDA as output open-drain
     GPIO_InitStructure.GPIO_Pin = scl_pin | sda_pin;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Output_OD;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_OD;
     GPIO_Init(pinport, &GPIO_InitStructure);
-    
-    // i2c_start, SDA 1, SCL hi-z, dly, SDA 1->0 dly, SCL 0, dly
-    // SDA low
-    GPIO_WriteBit(pinport, sda_pin, Bit_RESET);
+
+    i2c_start(pinport, sda_pin, scl_pin);
+
     // SCL hi-z
     GPIO_WriteBit(pinport, scl_pin, Bit_SET);
     i2c_dly();
     
-    // SDA hi-z
-    GPIO_WriteBit(pinport, sda_pin, BIT_SET);
-    i2c_dly();
-
     // loop to make at least 9 clocks
     for (uint32_t loop = 0; loop < 9; loop++)
     {
         // let SCL go high by pullup
         GPIO_WriteBit(pinport, scl_pin, Bit_SET);
-//        PLIB_PORTS_PinDirectionInputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);   // set SCL2 hig-z (input mode)
         i2c_dly();
         // pull SCL back low
         GPIO_WriteBit(pinport, scl_pin, Bit_RESET);
-//        PLIB_PORTS_PinClear(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);               // set SCL2 low output
-//        PLIB_PORTS_PinDirectionOutputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);  // set SCL2 low-z output driver
         i2c_dly();
     }
 
-    // i2c_stop, SCL 0, dly, SDA 0, dly, 0->1 on SCL, dly, then 0->1 on SDA
-
     // run a start stop sequence. this performs a state machine reset
     // in most slave i2c devices
-//    i2c_start();
-//    i2c_stop();
-//    i2c_dly();
+    i2c_start(pinport, sda_pin, scl_pin);
+    i2c_stop(pinport, sda_pin, scl_pin);
+    i2c_dly();
 
+    // reset the pins back to i2c control
+    setup_pins();
+    
     // re-enable  I2C0 controller
-//    PLIB_I2C_Enable(I2C_ID_2);
+    I2C_Cmd(_i2c, ENABLE);
+    
+    _tx_busy = 0;
 
     return true;
 }
