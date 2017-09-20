@@ -62,64 +62,14 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
 {
     _alt_func = use_alternate;
     
-    // enable dma clock
-    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
-
+    // start peripheral clocks
+    enable_clocks();
+    
     // disable the I2C if enabled
     I2C_Cmd(_i2c, DISABLE);
     
     // enable the I2C pins
-    uint16_t sda_pin = 0;
-    uint16_t scl_pin = 0;
-    GPIO_TypeDef* pinport = nullptr;
-
-    if (_devno == 1)
-    {
-        if (!_alt_func)
-        {
-            sda_pin = GPIO_Pin_7;
-            scl_pin = GPIO_Pin_6;
-            pinport = GPIOB;
-        }
-        else 
-        {
-            sda_pin = GPIO_Pin_9;
-            scl_pin = GPIO_Pin_8;
-            pinport = GPIOB;
-            RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
-        }
-        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-        RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
-    }
-    else if (_devno == 2)
-    {
-        if (!_alt_func) {
-            sda_pin = GPIO_Pin_11;
-            scl_pin = GPIO_Pin_10;
-            pinport = GPIOB;
-        }
-        else
-        {
-            while(1);
-        }
-        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-        RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C2, ENABLE);
-    }
-
-    // if using alternate, do the remap
-    if (_alt_func)
-    {
-        GPIO_PinRemapConfig(GPIO_Remap_I2C1, ENABLE);
-    }
-    
-    // configure the pins
-    GPIO_InitTypeDef GPIO_InitStructure;
-
-    // Configure I2C SCL, SDA as alternate function open drain
-    GPIO_InitStructure.GPIO_Pin = scl_pin | sda_pin;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_OD;
-    GPIO_Init(pinport, &GPIO_InitStructure);
+    setup_pins();
 
     /* I2C is configured as follows:
        - clock 100 KHz
@@ -148,13 +98,89 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     I2C_Cmd(_i2c, ENABLE);
 }
 
+// enable all clocks for needed peripherals
+void I2C::enable_clocks()
+{
+    // enable dma clock
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+
+    if (_devno == 1)
+    {
+        if (_alt_func)
+            RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);
+    }
+    else if (_devno == 2)
+    {
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+        RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C2, ENABLE);
+    }
+}
+
+void I2C::get_port_pins(GPIO_TypeDef** port, uint16_t& sda, uint16_t& scl)
+{
+    if (_devno == 1)
+    {
+        if (!_alt_func)
+        {
+            sda = GPIO_Pin_7;
+            scl = GPIO_Pin_6;
+            *port = GPIOB;
+        }
+        else 
+        {
+            sda = GPIO_Pin_9;
+            scl = GPIO_Pin_8;
+            *port = GPIOB;
+        }
+    }
+    else if (_devno == 2)
+    {
+        if (!_alt_func) {
+            sda = GPIO_Pin_11;
+            scl = GPIO_Pin_10;
+            *port = GPIOB;
+        }
+        else
+        {
+            while(1);
+        }
+    }
+}
+
+void I2C::setup_pins()
+{
+    // determine the I2C pins
+    uint16_t sda_pin = 0;
+    uint16_t scl_pin = 0;
+    GPIO_TypeDef* pinport = nullptr;
+
+    get_port_pins(&pinport, sda_pin, scl_pin);
+
+    // if using alternate, do the remap
+    if (_alt_func)
+    {
+        GPIO_PinRemapConfig(GPIO_Remap_I2C1, ENABLE);
+    }
+    
+    // configure the pins
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    // Configure I2C SCL, SDA as alternate function open drain
+    GPIO_InitStructure.GPIO_Pin = scl_pin | sda_pin;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_OD;
+    GPIO_Init(pinport, &GPIO_InitStructure);
+}
+
 bool I2C::send_receive(I2CMasterTxHeader* hdr,
                        void (*completed_fn)(void*), void* data)
 {
     if (hdr->first == nullptr)
         return false;
 
-    // set tx_busy to true, or return false
+    // set _tx_busy to true, or return false
     if (!__sync_bool_compare_and_swap(&_tx_busy, 0, 1))
         return false;
 
@@ -412,7 +438,10 @@ void I2C2_EV_IRQHandler(void)
 
 #endif
 
-#if 0
+void i2c_start();
+void i2c_stop();
+void i2c_dly();
+
 //
 //
 // function to temporarily disable the I2C port and the run sequence to 
@@ -422,41 +451,75 @@ void I2C2_EV_IRQHandler(void)
 // state machine logic reset in most slave peripheral chips
 //
 
-void i2c_recovery(void)
+bool I2C::bus_recovery()
 {
-    uint32_t loop;
+    // set _tx_busy to true, or return false
+    if (!__sync_bool_compare_and_swap(&_tx_busy, 0, 1))
+        return false;
 
-    // Disable I2C0 controller to free the I/O pins
-    PLIB_I2C_Disable(I2C_ID_2);
+    // determine the I2C pins
+    uint16_t sda_pin = 0;
+    uint16_t scl_pin = 0;
+    GPIO_TypeDef* pinport = nullptr;
+
+    get_port_pins(&pinport, sda_pin, scl_pin);
+    
+    // Disable I2C controller to free the I/O pins
+    I2C_Cmd(_i2c, DISABLE);
+//    i2c_dly();
+
+    // set the pins for manual control
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    // if using alternate, kill the remap
+    if (_alt_func)
+    {
+        GPIO_PinRemapConfig(GPIO_Remap_I2C1, DISABLE);
+    }
+    
+    // Configure I2C SCL & SDA as output open-drain
+    GPIO_InitStructure.GPIO_Pin = scl_pin | sda_pin;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Output_OD;
+    GPIO_Init(pinport, &GPIO_InitStructure);
+    
+    // i2c_start, SDA 1, SCL hi-z, dly, SDA 1->0 dly, SCL 0, dly
+    // SDA low
+    GPIO_WriteBit(pinport, sda_pin, Bit_RESET);
+    // SCL hi-z
+    GPIO_WriteBit(pinport, scl_pin, Bit_SET);
     i2c_dly();
-
-    i2c_start();
-    // let SDA be able to go high
-    PLIB_PORTS_PinDirectionInputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_3);   // set SDA2 hig-z (input mode)
+    
+    // SDA hi-z
+    GPIO_WriteBit(pinport, sda_pin, BIT_SET);
     i2c_dly();
 
     // loop to make at least 9 clocks
-    for (loop = 0; loop < 9; loop++)
+    for (uint32_t loop = 0; loop < 9; loop++)
     {
         // let SCL go high by pullup
-        PLIB_PORTS_PinDirectionInputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);   // set SCL2 hig-z (input mode)
+        GPIO_WriteBit(pinport, scl_pin, Bit_SET);
+//        PLIB_PORTS_PinDirectionInputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);   // set SCL2 hig-z (input mode)
         i2c_dly();
         // pull SCL back low
-        PLIB_PORTS_PinClear(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);               // set SCL2 low output
-        PLIB_PORTS_PinDirectionOutputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);  // set SCL2 low-z output driver
+        GPIO_WriteBit(pinport, scl_pin, Bit_RESET);
+//        PLIB_PORTS_PinClear(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);               // set SCL2 low output
+//        PLIB_PORTS_PinDirectionOutputSet(PORTS_ID_0, PORT_CHANNEL_A, PORTS_BIT_POS_2);  // set SCL2 low-z output driver
         i2c_dly();
     }
-    i2c_stop();
+
+    // i2c_stop, SCL 0, dly, SDA 0, dly, 0->1 on SCL, dly, then 0->1 on SDA
 
     // run a start stop sequence. this performs a state machine reset
     // in most slave i2c devices
-    i2c_start();
-    i2c_stop();
-    i2c_dly();
+//    i2c_start();
+//    i2c_stop();
+//    i2c_dly();
 
     // re-enable  I2C0 controller
-    PLIB_I2C_Enable(I2C_ID_2);
+//    PLIB_I2C_Enable(I2C_ID_2);
+
+    return true;
 }
-#endif
 
 // ----------------------------------------------------------------------------

@@ -13,13 +13,13 @@
 #include "stm32_dma.h"
 #include "isr_def.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
+
 // ----------------------------------------------------------------------------
 
 // which kind of i2c transmission
 enum I2CTransferType {TransmitNoStop, TransmitWithStop, ReceiveNoStop, ReceiveWithStop};
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
 
 // each segment of the transmission has one of these
 struct I2CMasterTxSegment
@@ -30,6 +30,7 @@ struct I2CMasterTxSegment
     struct I2CMasterTxSegment* next;
 };
 
+// header of transmission
 struct I2CMasterTxHeader
 {
     uint32_t clock_speed;
@@ -45,29 +46,37 @@ class I2C
     
 public:
 
+    // constructor using device number
     explicit I2C(int device_no);
 
     // initialize the I2C hardware
     void begin(bool use_alternate, uint8_t priority, uint8_t subpriority);
 
-    // send/receive some data, return false if transmission in progress, true if transmission
+    // send/receive segments, return false if transmission in progress, true if transmission
     // started or scheduled to start
     bool send_receive(I2CMasterTxHeader* header, void (*completed_fn)(void*), void* data);
 
     // setup flags in Segment based on type of transfer
     void init_segment(I2CMasterTxSegment* segment, I2CTransferType type, uint8_t* databuffer,
                       uint32_t bufferlen, I2CMasterTxSegment* next);
+
+    // run a reset on the bus to unstick slave devices, returns false if i2c is busy
+    // true if reset sequence completed
+    bool bus_recovery();
     
 private:
 
-    static void tx_start_irq(void * data);
+    static void tx_start_irq(void* data);
     static void dma_complete(void* data);
 
     void wait_for_event(uint32_t event);
     void tx_start();
     void priv_rx_complete();
     void priv_tx_complete();
-
+    void enable_clocks();
+    void get_port_pins(GPIO_TypeDef** port, uint16_t& sda, uint16_t& scl);
+    void setup_pins();
+    
     // define away copy constructor and assignment operator
     I2C(const I2C&);
     const I2C& operator=(const I2C&);
