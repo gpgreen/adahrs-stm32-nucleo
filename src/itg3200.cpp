@@ -41,7 +41,8 @@ static ITG3200* s_device_0;
 // ----------------------------------------------------------------------------
 
 ITG3200::ITG3200(I2C* bus)
-    : _bus(bus), _state(0), _temp(0), _retries(0), _missed_converts(0)
+    : _bus(bus), _state(0), _temp(0), _use_interrupt(true),
+      _retries(0), _missed_converts(0)
 {
     _i2c_header.clock_speed = 100000;
     _i2c_header.first = &_i2c_segments[0];
@@ -49,9 +50,11 @@ ITG3200::ITG3200(I2C* bus)
     s_device_0 = this;
 }
 
-void ITG3200::begin(int16_t* sign_map, uint8_t* axis_map,
+void ITG3200::begin(bool use_interrupt, int16_t* sign_map, uint8_t* axis_map,
                     uint8_t priority, uint8_t subpriority)
 {
+    _use_interrupt = use_interrupt;
+    
     _sign_map[0] = sign_map[0];
     _sign_map[1] = sign_map[1];
     _sign_map[2] = sign_map[2];
@@ -61,33 +64,35 @@ void ITG3200::begin(int16_t* sign_map, uint8_t* axis_map,
 
     _state = 1;
 
-    // setup interrupt pin
-    GPIO_InitTypeDef GPIO_InitStructure;
+    if (_use_interrupt)
+    {
+        // setup interrupt pin
+        GPIO_InitTypeDef GPIO_InitStructure;
 
-    // enable clocks
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+        // enable clocks
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
     
-    // Configure PA1 as input pull down
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
+        // Configure PA1 as input pull down
+        GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
+        GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+        GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
+        GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-    // enable interrupt handler
-    configure_nvic(EXTI1_IRQn, priority, subpriority);
+        // enable interrupt handler
+        configure_nvic(EXTI1_IRQn, priority, subpriority);
     
-    // configure EXTI Line 1 as interrupt channel
-    EXTI_ClearITPendingBit(EXTI_Line1);
-    EXTI_InitTypeDef EXTI_InitStructure;
-    EXTI_InitStructure.EXTI_Line = EXTI_Line1;
-    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
-    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTI_InitStructure);
-
-    // Enable external interrupt 1
-    GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource1);
-
+        // configure EXTI Line 1 as interrupt channel
+        EXTI_ClearITPendingBit(EXTI_Line1);
+        EXTI_InitTypeDef EXTI_InitStructure;
+        EXTI_InitStructure.EXTI_Line = EXTI_Line1;
+        EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+        EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
+        EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+        EXTI_Init(&EXTI_InitStructure);
+        
+        // Enable external interrupt 1
+        GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource1);
+    }
     init_stage1(this);
 }
 
@@ -137,8 +142,11 @@ void ITG3200::init_stage2(void* data)
     gyro->_data[3] = 0x07;     // sample rate division is 7+1 = 125Hz, 8ms per sample
     gyro->_data[4] = 0x1a;     // ITG_REG_DLPF_FS, FS_SEL=3 (2000deg/s),
                                //   DLPF_CFG=2, 98Hz band pass, 1kHz internal sample rate
-    gyro->_data[5] = 0x11;     // ACTIVE_HIGH, DRIVE PUSH-PULL, ITG_REG_INT_CFG, RAW_RDY_EN,
+    if (gyro->_use_interrupt)
+        gyro->_data[5] = 0x11; // ACTIVE_HIGH, DRIVE PUSH-PULL, ITG_REG_INT_CFG, RAW_RDY_EN,
                                //   INT_ANYRD_2CLEAR
+    else
+        gyro->_data[5] = 0x00;
 
     // setup i2c transfer
     gyro->_i2c_header.first = &(gyro->_i2c_segments[0]);

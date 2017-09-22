@@ -24,7 +24,8 @@ public:
     explicit ADXL345(I2C* bus);
 
     // initialize the hardware
-    void begin(int16_t* sign_map, uint8_t* axis_map,
+    void begin(bool use_interrupt,
+               int16_t* sign_map, uint8_t* axis_map,
                uint8_t priority, uint8_t subpriority);
 
     // retrieve data, return false if not ready
@@ -67,6 +68,7 @@ private:
     volatile int _state;
     uint8_t _data[8];
     uint8_t _axis_map[3];
+    bool _use_interrupt;
     int16_t _sign_map[3];
     int16_t _raw_accel[3];
     int16_t _corrected_accel[3];
