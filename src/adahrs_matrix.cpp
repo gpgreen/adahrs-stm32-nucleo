@@ -82,47 +82,43 @@ Matrix& Matrix::operator =(const Matrix& src)
     return *this;
 }
 
-Matrix& Matrix::operator +(const Matrix& src)
+Matrix& Matrix::operator +=(const Matrix& rhs)
 {
-    if (_rows != src._rows || _cols != src._cols)
+    if (_rows != rhs._rows || _cols != rhs._cols)
     {
         while (1);
     }
     
-    for (int i=0; i<src._rows; ++i)
+    for (int i=0; i<rhs._rows; ++i)
     {
-        for (int j=0; j<src._cols; ++j)
+        for (int j=0; j<rhs._cols; ++j)
         {
-            _data[i][j] += src._data[i][j];
+            _data[i][j] += rhs._data[i][j];
         }
     }
     return *this;
 }
 
-Matrix& Matrix::operator *(const Matrix& src)
+Matrix& Matrix::operator *= (const Matrix& rhs)
 {
-    if (_cols != src._rows)
+    if (_cols != rhs._rows)
     {
         while (1);
     }
-
-    Matrix result(_rows, _cols);
+    _cols = rhs._cols;
+    
     for (int i=0; i<_rows; ++i)
     {
-        for (int j=0; j<src._cols; ++j)
+        for (int j=0; j<rhs._cols; ++j)
         {
             float dot_product = 0;
             for (int k=0; k<_cols; ++k)
             {
-                dot_product += _data[i][k] * src._data[k][j];
+                dot_product += _data[i][k] * rhs._data[k][j];
             }
-            result._data[i][j] = dot_product;
+            _data[i][j] = dot_product;
         }
     }
-
-    // copy to this
-    *this = result;
-    
     return *this;
 }
 

@@ -27,14 +27,31 @@ public:
     
     // operators
     Quaternion& operator =(const Quaternion& src);
-    Quaternion& operator *(const Quaternion& other);
-    Quaternion& operator +(const Quaternion& other);
-    Quaternion& operator -(const Quaternion& other);
+
+    Quaternion& operator *=(const Quaternion& rhs);
+    friend Quaternion operator *(Quaternion lhs, const Quaternion& rhs)
+    {
+        lhs *= rhs;
+        return lhs;
+    }
+    Quaternion& operator +=(const Quaternion& rhs);
+    friend Quaternion operator +(Quaternion lhs, const Quaternion& rhs)
+    {
+        lhs += rhs;
+        return lhs;
+    }
+    Quaternion& operator -=(const Quaternion& rhs);
+    friend Quaternion operator -(Quaternion lhs, const Quaternion& rhs)
+    {
+        lhs -= rhs;
+        return lhs;
+    }
+    
     Quaternion& operator *(float scalar);
 
     // functions
-    void norm();
-    void conj();
+    void normalize();
+    void conjugation();
     
 private:
     float _a,_b,_c,_d;

@@ -96,7 +96,7 @@ ADAHRSCommand::ADAHRSCommand()
     // does nothing else
 }
 
-void ADAHRSCommand::begin(ADAHRSConfig* config, ADAHRSSensorData* state)
+void ADAHRSCommand::begin(ADAHRSConfig* /*config*/, ADAHRSSensorData* /*state*/)
 {
 }
 
@@ -146,8 +146,9 @@ USART_STATE_CHECKSUM
 	 USART_STATE_WAIT state.  The packet will be handled later from within the
 	 main program loop. 
 */
-void ADAHRSCommand::process_next_char()
+void ADAHRSCommand::process_next_character()
 {
+#if 0
     static uint8_t data_counter = 0;
     static USARTPacket new_packet;
 	 
@@ -313,7 +314,7 @@ void ADAHRSCommand::process_next_char()
 				
         break;
     }
-		  
+#endif		  
 }
 
 /*******************************************************************************
@@ -337,6 +338,7 @@ the transmitter becomes available, the packet is copied into the TX buffer.
 *******************************************************************************/
 void ADAHRSCommand::send_next_packet()
 {
+#if 0
     uint8_t PT;
     uint8_t address;
     uint8_t data_length;
@@ -383,6 +385,7 @@ void ADAHRSCommand::send_next_packet()
 	 
     // Start the transmission
     USART1_TX_start();
+#endif
 }
 
 // ----------------------------------------------------------------------------

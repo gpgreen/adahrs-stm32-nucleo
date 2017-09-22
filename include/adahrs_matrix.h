@@ -32,9 +32,22 @@ public:
     // assignment operator
     Matrix& operator =(const Matrix& m);
 
-    // matrix operators
-    Matrix& operator +(const Matrix& m);
-    Matrix& operator *(const Matrix& m);
+    // addition operators
+    Matrix& operator +=(const Matrix& rhs);
+    friend Matrix operator +(Matrix lhs, const Matrix& rhs)
+    {
+        lhs += rhs;
+        return lhs;
+    }
+    
+    // multiplication
+    Matrix& operator *=(const Matrix& rhs);
+    friend Matrix operator *(Matrix lhs, const Matrix& rhs)
+    {
+        lhs *= rhs;
+        return lhs;
+    }
+    
     Matrix& operator *(float scalar);
 
     // functions

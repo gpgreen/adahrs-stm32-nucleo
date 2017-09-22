@@ -11,6 +11,7 @@
 #include "cmsis_device.h"
 #include "adahrs_config.h"
 #include "adahrs_states.h"
+#include "adahrs_matrix.h"
 
 // ----------------------------------------------------------------------------
 
@@ -26,17 +27,15 @@ public:
     // do estimation using kalman filter, copy data
     void estimate_states();
     
-    void correction();
-    void compute_euler_angles();
-
-    // ensure angles are within 0-360 degrees
-    void unroll_states();
-    
 private:
 
     void convert_raw_sensor_data();
     void predict();
     void update();
+    void correction(const Matrix& C, float sensor_data, float sensor_hat, float sensor_covariance);
+    void compute_euler_angles();
+    void unroll_states();
+    
 
     // define away copy constructor and assignment operator
     EKF(const EKF& src);
