@@ -132,7 +132,7 @@ typedef struct __ADAHRS_state_data {
     };
     
     // Quaternion states "qib" = Quaternion from Inertial to Body
-    quat qib;
+    Quaternion qib;
 	 
     // Gyro biases
     int16_t beta_p,beta_q,beta_r;
@@ -149,19 +149,19 @@ typedef struct __ADAHRS_state_data {
     int16_t beta_mag_x, beta_mag_y, beta_mag_z;
     
     // Process noise matrix
-    fMatrix R;
+    Matrix R;
     
     // Accelerometer alignment matrix
-    fMatrix accel_cal;
+    Matrix accel_cal;
     
     // Gyro alignment matrix
-    fMatrix gyro_cal;
+    Matrix gyro_cal;
     
     // Magnetometer calibration matrix
-    fMatrix mag_cal;
+    Matrix mag_cal;
     
     // EKF covariance
-    fMatrix Sigma;
+    Matrix Sigma;
     
     // Magnetic field reference vector
     float mag_ref_x;
@@ -228,10 +228,12 @@ public:
     void begin(ADAHRSConfig* config);
 
     void copy_states_to_config(ADAHRSConfig* config);
-    
-private:
 
     void copy_config_to_states(ADAHRSConfig* config);
+
+    EKF_mode mode() const {return _mode;}
+
+private:
 
     // define away copy constructor and assignment operator
     ADAHRSSensorData(const ADAHRSSensorData&);

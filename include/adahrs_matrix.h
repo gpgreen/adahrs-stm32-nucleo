@@ -8,27 +8,50 @@
 #ifndef ADAHRS_MATRIX_H_
 #define ADAHRS_MATRIX_H_
 
+#include "cmsis_device.h"
+
 // ----------------------------------------------------------------------------
 #define	MATRIX_MAX_ROWS		4
 #define	MATRIX_MAX_COLUMNS	4
 
-typedef struct _fMatrix {
-    int rows;
-    int columns;
-    float data[MATRIX_MAX_ROWS][MATRIX_MAX_COLUMNS];
-} fMatrix;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpadded"
 
-// Matrix operations
-//int mat_add( fMatrix* src1, fMatrix* src2, fMatrix* dest );
-//int mat_mult( fMatrix* src1, fMatrix* src2, fMatrix* dest );
-//int mat_scalar_mult( float scalar, fMatrix* src, fMatrix* dest );
-//int mat_determinant( fMatrix* src, float* det );
-//int mat_transpose( fMatrix* src, fMatrix* dest );
-//int mat_create_identity( fMatrix* dest, int rows, int columns );
-//int mat_zero( fMatrix* dest, int rows, int columns );
-//int mat_copy( fMatrix* src, fMatrix* dest );
+class Matrix
+{
+public:
+    // constructor(s)
+    Matrix();
+    explicit Matrix(uint8_t rows, uint8_t cols, bool identity=false);
+    Matrix(const Matrix& src);
 
-//void mat_print( fMatrix* matrix );
+    // get value
+    float get(uint8_t row, uint8_t col) const;
+    void set(uint8_t row, uint8_t col, float val);
+    
+    // assignment operator
+    Matrix& operator =(const Matrix& m);
+
+    // matrix operators
+    Matrix& operator +(const Matrix& m);
+    Matrix& operator *(const Matrix& m);
+    Matrix& operator *(float scalar);
+
+    // functions
+    float determinant() const;
+    Matrix& transpose(const Matrix& src);
+    void zero();
+
+    void print() const;
+    
+private:
+    
+    float _data[MATRIX_MAX_ROWS][MATRIX_MAX_COLUMNS];
+    uint8_t _rows;
+    uint8_t _cols;
+};
+
+#pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
 #endif /* ADAHRS_MATRIX_H_ */

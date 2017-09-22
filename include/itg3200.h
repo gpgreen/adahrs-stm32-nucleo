@@ -24,7 +24,8 @@ public:
     explicit ITG3200(I2C* bus);
 
     // initialize the hardware
-    void begin(int16_t* sign_map, uint8_t* axis_map,
+    void begin(bool use_interrupt,
+               int16_t* sign_map, uint8_t* axis_map,
                uint8_t priority, uint8_t subpriority);
 
     // has setup been completed?
@@ -67,6 +68,7 @@ private:
     uint8_t _data[8];
     uint8_t _axis_map[3];
     int16_t _temp;
+    bool _use_interrupt;
     int16_t _raw_gyro[3];
     int16_t _sign_map[3];
     int16_t _corrected_gyro[3];

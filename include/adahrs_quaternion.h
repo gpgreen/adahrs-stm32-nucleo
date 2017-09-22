@@ -8,17 +8,37 @@
 #ifndef ADAHRS_QUATERNION_H_
 #define ADAHRS_QUATERNION_H_
 
-// ----------------------------------------------------------------------------
-typedef struct _quat {
-	 float a,b,c,d;
-} quat;
+#include "cmsis_device.h"
 
-//int quat_mult( quat* src1, quat* src2, quat* dest );
-//int quat_conj( quat* src, quat* dest );
-//int quat_norm( quat* src );
-//int quat_add( quat* src1, quat* src2, quat* dest );
-//int quat_subtract( quat* src1, quat*src2, quat* dest );
-//int quat_scalar_mult( quat* qsrc, float scalar, quat* dest );
+// ----------------------------------------------------------------------------
+
+class Quaternion
+{
+public:
+
+    Quaternion();
+    explicit Quaternion(float a, float b, float c, float d);
+    Quaternion(const Quaternion& src);
+
+    float a() const;
+    float b() const;
+    float c() const;
+    float d() const;
+    
+    // operators
+    Quaternion& operator =(const Quaternion& src);
+    Quaternion& operator *(const Quaternion& other);
+    Quaternion& operator +(const Quaternion& other);
+    Quaternion& operator -(const Quaternion& other);
+    Quaternion& operator *(float scalar);
+
+    // functions
+    void norm();
+    void conj();
+    
+private:
+    float _a,_b,_c,_d;
+};
 
 // ----------------------------------------------------------------------------
 #endif /* ADAHRS_QUATERNION_H_ */

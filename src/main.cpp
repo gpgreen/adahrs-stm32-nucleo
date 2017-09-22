@@ -98,14 +98,14 @@ main(int /*argc*/, char* /*argv*/[])
 
     // start the accel sensor
     ADXL345 adxl(&i2c1);
-    adxl.begin(sign_map, axis_map, ADXL_IRQ_PRIORITY, 0);
+    adxl.begin(true, sign_map, axis_map, ADXL_IRQ_PRIORITY, 0);
     // now sleep for 50ms
     t0.start(50000, Timer::OneShot);
     t0.wait_for();
     
     // start the gyro sensor
     ITG3200 gyro(&i2c1);
-    gyro.begin(sign_map, axis_map, ITG_IRQ_PRIORITY, 0);
+    gyro.begin(true, sign_map, axis_map, ITG_IRQ_PRIORITY, 0);
     // now sleep for 100ms
     t0.start(100000, Timer::OneShot);
     t0.wait_for();

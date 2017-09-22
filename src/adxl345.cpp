@@ -53,7 +53,8 @@ static ADXL345* s_device_0;
 // ----------------------------------------------------------------------------
 
 ADXL345::ADXL345(I2C* bus)
-    : _bus(bus), _state(0), _retries(0), _missed_converts(0)
+    : _bus(bus), _state(0), _use_interrupt(true),
+      _retries(0), _missed_converts(0)
 {
     _i2c_header.clock_speed = 100000;
     _i2c_header.first = &_i2c_segments[0];
@@ -61,9 +62,11 @@ ADXL345::ADXL345(I2C* bus)
     s_device_0 = this;
 }
 
-void ADXL345::begin(int16_t* sign_map, uint8_t* axis_map,
+void ADXL345::begin(bool use_interrupt, int16_t* sign_map, uint8_t* axis_map,
                     uint8_t priority, uint8_t subpriority)
 {
+    _use_interrupt = use_interrupt;
+    
     _sign_map[0] = sign_map[0];
     _sign_map[1] = sign_map[1];
     _sign_map[2] = sign_map[2];
@@ -73,32 +76,35 @@ void ADXL345::begin(int16_t* sign_map, uint8_t* axis_map,
 
     _state = 1;
 
-    // setup interrupt pin
-    GPIO_InitTypeDef GPIO_InitStructure;
+    if (_use_interrupt)
+    {
+        // setup interrupt pin
+        GPIO_InitTypeDef GPIO_InitStructure;
 
-    // enable clocks
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+        // enable clocks
+        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
     
-    // Configure PA0 as input pull down
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
+        // Configure PA0 as input pull down
+        GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
+        GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+        GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPD;
+        GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-    // enable interrupt handler
-    configure_nvic(EXTI0_IRQn, priority, subpriority);
+        // enable interrupt handler
+        configure_nvic(EXTI0_IRQn, priority, subpriority);
     
-    // configure EXTI Line 0 as interrupt channel
-    EXTI_ClearITPendingBit(EXTI_Line0);
-    EXTI_InitTypeDef EXTI_InitStructure;
-    EXTI_InitStructure.EXTI_Line = EXTI_Line0;
-    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
-    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTI_InitStructure);
+        // configure EXTI Line 0 as interrupt channel
+        EXTI_ClearITPendingBit(EXTI_Line0);
+        EXTI_InitTypeDef EXTI_InitStructure;
+        EXTI_InitStructure.EXTI_Line = EXTI_Line0;
+        EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+        EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising;
+        EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+        EXTI_Init(&EXTI_InitStructure);
 
-    // Enable external interrupt 0
-    GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
+        // Enable external interrupt 0
+        GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
+    }
     
     // full resolution, 16g, interrupt ACTIVE_HIGH
     _data[0] = ADXL_DATA_FORMAT;
@@ -126,6 +132,8 @@ void ADXL345::init_stage2()
 {
 
     // setup interrupt control registers
+
+    // TODO: what about no interrupts?
     
     // disable interrupts
     _data[0] = ADXL_INT_ENABLE;

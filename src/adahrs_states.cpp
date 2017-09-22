@@ -57,25 +57,22 @@ void ADAHRSSensorData::copy_config_to_states(ADAHRSConfig* config)
     v = config->get_register(UM6_EKF_PROCESS_VARIANCE);
     if( (config->get_register(UM6_MISC_CONFIG) & UM6_QUAT_ESTIMATE_ENABLED) == 0 )
     {
-        // TODO
-        //mat_zero( &state_data.R, 3, 3 );
-        state_data.R.data[0][0] = *reinterpret_cast<float*>(&v);
-        state_data.R.data[1][1] = *reinterpret_cast<float*>(&v);
-        state_data.R.data[2][2] = *reinterpret_cast<float*>(&v);
-        state_data.R.data[3][3] = *reinterpret_cast<float*>(&v);
+    	state_data.R = Matrix(4, 4);
+        state_data.R.set(0, 0, *reinterpret_cast<float*>(&v));
+        state_data.R.set(1, 1, *reinterpret_cast<float*>(&v));
+        state_data.R.set(2, 2, *reinterpret_cast<float*>(&v));
+        state_data.R.set(3, 3, *reinterpret_cast<float*>(&v));
 		  
         _mode = MODE_EULER;
     }
     else
     {
-        // TODO
-        //mat_zero( &state_data.R, 4, 4 );
-		  
         // Process variance is scaled here so that the performance in Euler Angle mode and Quaternion mode is comparable
-        state_data.R.data[0][0] = *reinterpret_cast<float*>(&v) * 0.00001f;
-        state_data.R.data[1][1] = *reinterpret_cast<float*>(&v) * 0.00001f;
-        state_data.R.data[2][2] = *reinterpret_cast<float*>(&v) * 0.00001f;
-        state_data.R.data[3][3] = *reinterpret_cast<float*>(&v) * 0.00001f;
+    	state_data.R = Matrix(4, 4);
+        state_data.R.set(0, 0, *reinterpret_cast<float*>(&v) * 0.00001f);
+        state_data.R.set(1, 1, *reinterpret_cast<float*>(&v) * 0.00001f);
+        state_data.R.set(2, 2, *reinterpret_cast<float*>(&v) * 0.00001f);
+        state_data.R.set(3, 3, *reinterpret_cast<float*>(&v) * 0.00001f);
 		  
         _mode = MODE_QUATERNION;
     }
@@ -138,97 +135,91 @@ void ADAHRSSensorData::copy_config_to_states(ADAHRSConfig* config)
     state_data.beta_mag_z = (int16_t)(config->get_register(UM6_MAG_BIAS_Z) >> 16);
 	 
     // Accelerometer calibration matrix
+    state_data.accel_cal = Matrix(3, 3);
     v = config->get_register(UM6_ACCEL_CAL_00);
-    state_data.accel_cal.data[0][0] = *reinterpret_cast<float*>(&v);
+    state_data.accel_cal.set(0, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_ACCEL_CAL_01);
-    state_data.accel_cal.data[0][1] = *reinterpret_cast<float*>(&v);
+    state_data.accel_cal.set(0, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_ACCEL_CAL_02);
-    state_data.accel_cal.data[0][2] = *reinterpret_cast<float*>(&v);
+    state_data.accel_cal.set(0, 2, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_ACCEL_CAL_10);
-    state_data.accel_cal.data[1][0] = *reinterpret_cast<float*>(&v);
+    state_data.accel_cal.set(1, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_ACCEL_CAL_11);
-    state_data.accel_cal.data[1][1] = *reinterpret_cast<float*>(&v);
+    state_data.accel_cal.set(1, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_ACCEL_CAL_12);
-    state_data.accel_cal.data[1][2] = *reinterpret_cast<float*>(&v);
+    state_data.accel_cal.set(1, 2, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_ACCEL_CAL_20);
-    state_data.accel_cal.data[2][0] = *reinterpret_cast<float*>(&v);
+    state_data.accel_cal.set(2, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_ACCEL_CAL_21);
-    state_data.accel_cal.data[2][1] = *reinterpret_cast<float*>(&v);
+    state_data.accel_cal.set(2, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_ACCEL_CAL_22);
-    state_data.accel_cal.data[2][2] = *reinterpret_cast<float*>(&v);	
-
-    state_data.accel_cal.rows = 3;
-    state_data.accel_cal.columns = 3;	 
+    state_data.accel_cal.set(2, 2, *reinterpret_cast<float*>(&v));	
 	 
     // Rate gyro alignment matrix
+    state_data.gyro_cal = Matrix(3, 3);
     v = config->get_register(UM6_GYRO_CAL_00);
-    state_data.gyro_cal.data[0][0] = *reinterpret_cast<float*>(&v);
+    state_data.gyro_cal.set(0, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_GYRO_CAL_01);
-    state_data.gyro_cal.data[0][1] = *reinterpret_cast<float*>(&v);
+    state_data.gyro_cal.set(0, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_GYRO_CAL_02);
-    state_data.gyro_cal.data[0][2] = *reinterpret_cast<float*>(&v);
+    state_data.gyro_cal.set(0, 2, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_GYRO_CAL_10);
-    state_data.gyro_cal.data[1][0] = *reinterpret_cast<float*>(&v);
+    state_data.gyro_cal.set(1, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_GYRO_CAL_11);
-    state_data.gyro_cal.data[1][1] = *reinterpret_cast<float*>(&v);
+    state_data.gyro_cal.set(1, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_GYRO_CAL_12);
-    state_data.gyro_cal.data[1][2] = *reinterpret_cast<float*>(&v);
+    state_data.gyro_cal.set(1, 2, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_GYRO_CAL_20);
-    state_data.gyro_cal.data[2][0] = *reinterpret_cast<float*>(&v);
+    state_data.gyro_cal.set(2, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_GYRO_CAL_21);
-    state_data.gyro_cal.data[2][1] = *reinterpret_cast<float*>(&v);
+    state_data.gyro_cal.set(2, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_GYRO_CAL_22);
-    state_data.gyro_cal.data[2][2] = *reinterpret_cast<float*>(&v);
-	 
-    state_data.gyro_cal.rows = 3;
-    state_data.gyro_cal.columns = 3;
+    state_data.gyro_cal.set(2, 2, *reinterpret_cast<float*>(&v));
 	 
     // Magnetometer calibration matrix
+    state_data.mag_cal = Matrix(3, 3);
     v = config->get_register(UM6_MAG_CAL_00);
-    state_data.mag_cal.data[0][0] = *reinterpret_cast<float*>(&v);
+    state_data.mag_cal.set(0, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_MAG_CAL_01);
-    state_data.mag_cal.data[0][1] = *reinterpret_cast<float*>(&v);
+    state_data.mag_cal.set(0, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_MAG_CAL_02);
-    state_data.mag_cal.data[0][2] = *reinterpret_cast<float*>(&v);
+    state_data.mag_cal.set(0, 2, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_MAG_CAL_10);
-    state_data.mag_cal.data[1][0] = *reinterpret_cast<float*>(&v);
+    state_data.mag_cal.set(1, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_MAG_CAL_11);
-    state_data.mag_cal.data[1][1] = *reinterpret_cast<float*>(&v);
+    state_data.mag_cal.set(1, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_MAG_CAL_12);
-    state_data.mag_cal.data[1][2] = *reinterpret_cast<float*>(&v);
+    state_data.mag_cal.set(1, 2, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_MAG_CAL_20);
-    state_data.mag_cal.data[2][0] = *reinterpret_cast<float*>(&v);
+    state_data.mag_cal.set(2, 0, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_MAG_CAL_21);
-    state_data.mag_cal.data[2][1] = *reinterpret_cast<float*>(&v);
+    state_data.mag_cal.set(2, 1, *reinterpret_cast<float*>(&v));
 	 
     v = config->get_register(UM6_MAG_CAL_22);
-    state_data.mag_cal.data[2][2] = *reinterpret_cast<float*>(&v);
-	 
-    state_data.mag_cal.rows = 3;
-    state_data.mag_cal.columns = 3;
+    state_data.mag_cal.set(2, 2, *reinterpret_cast<float*>(&v));
 	 
     // GPS home data
     v = config->get_register(UM6_GPS_HOME_LAT);
@@ -319,65 +310,65 @@ void ADAHRSSensorData::copy_states_to_config(ADAHRSConfig* config)
     // Quaternions are normalized, so the maximum value of any single element is 1.0.  However, let the value go to +/- 1.1 to 
     // to avoid overflow problems at 1.0
     // 2^16/2.2 = 29789.09091
-    converted_data1 = (int16_t)roundf(state_data.qib.a * 29789.09091f);
-    converted_data2 = (int16_t)roundf(state_data.qib.b * 29789.09091f);
+    converted_data1 = (int16_t)roundf(state_data.qib.a() * 29789.09091f);
+    converted_data2 = (int16_t)roundf(state_data.qib.b() * 29789.09091f);
     config->set_register(UM6_QUAT_AB, (uint32_t)((converted_data1 << 16)
                                                  | (converted_data2 & 0x0FFFF)));
 	 
-    converted_data1 = (int16_t)roundf(state_data.qib.c * 29789.09091f);
-    converted_data2 = (int16_t)roundf(state_data.qib.d * 29789.09091f);
+    converted_data1 = (int16_t)roundf(state_data.qib.c() * 29789.09091f);
+    converted_data2 = (int16_t)roundf(state_data.qib.d() * 29789.09091f);
     config->set_register(UM6_QUAT_CD, (uint32_t)((converted_data1 << 16)
                                                  | (converted_data2 & 0x0FFFF)));
 
     float f;
     
     // Error covariance matrix
-    f = state_data.Sigma.data[0][0];
+    f = state_data.Sigma.get(0, 0);
     config->set_register(UM6_ERROR_COV_00, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[0][1];
+    f = state_data.Sigma.get(0, 1);
     config->set_register(UM6_ERROR_COV_01, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[0][2];
+    f = state_data.Sigma.get(0, 2);
     config->set_register(UM6_ERROR_COV_02, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[0][3];
+    f = state_data.Sigma.get(0, 3);
     config->set_register(UM6_ERROR_COV_03, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[1][0];
+    f = state_data.Sigma.get(1, 0);
     config->set_register(UM6_ERROR_COV_10, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[1][1];
+    f = state_data.Sigma.get(1, 1);
     config->set_register(UM6_ERROR_COV_11, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[1][2];
+    f = state_data.Sigma.get(1, 2);
     config->set_register(UM6_ERROR_COV_12, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[1][3];
+    f = state_data.Sigma.get(1, 3);
     config->set_register(UM6_ERROR_COV_13, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[2][0];
+    f = state_data.Sigma.get(2, 0);
     config->set_register(UM6_ERROR_COV_20, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[2][1];
+    f = state_data.Sigma.get(2, 1);
     config->set_register(UM6_ERROR_COV_21, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[2][2];
+    f = state_data.Sigma.get(2, 2);
     config->set_register(UM6_ERROR_COV_22, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[2][3];
+    f = state_data.Sigma.get(2, 3);
     config->set_register(UM6_ERROR_COV_23, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[3][0];
+    f = state_data.Sigma.get(3, 0);
     config->set_register(UM6_ERROR_COV_30, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[3][1];
+    f = state_data.Sigma.get(3, 1);
     config->set_register(UM6_ERROR_COV_31, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[3][2];
+    f = state_data.Sigma.get(3, 2);
     config->set_register(UM6_ERROR_COV_32, *reinterpret_cast<uint32_t*>(&f));
 	 
-    f = state_data.Sigma.data[3][3];
+    f = state_data.Sigma.get(3, 3);
     config->set_register(UM6_ERROR_COV_33, *reinterpret_cast<uint32_t*>(&f));
       
     f = state_data.temperature;
