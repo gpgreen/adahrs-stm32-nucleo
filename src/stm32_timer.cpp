@@ -42,7 +42,7 @@ TimerList::TimerList()
 }
 
 // === START critical section
-void TimerList::start_critical_section()
+inline void TimerList::start_critical_section()
 {
     // critical section created by setting BASEPRI to a level
     // above masked irq's
@@ -50,19 +50,19 @@ void TimerList::start_critical_section()
 }
 
 // === END critical section
-void TimerList::end_critical_section()
+inline void TimerList::end_critical_section()
 {
     __set_BASEPRI(0U);
 }
 
 void TimerList::insert(Timer* t)
 {
-    // find the correct spot to insert timer
     uint32_t ccount = t->length; // this will become the count for the inserted timer
                                  // also it determines where the timer fits into list
 
     start_critical_section();
     
+    // find the correct spot to insert timer, and put it in list
     if (head == nullptr || head->count > ccount)
     {
         t->next = head;
