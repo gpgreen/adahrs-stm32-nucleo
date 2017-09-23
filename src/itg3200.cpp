@@ -146,7 +146,7 @@ void ITG3200::init_stage2(void* data)
         gyro->_data[5] = 0x11; // ACTIVE_HIGH, DRIVE PUSH-PULL, ITG_REG_INT_CFG, RAW_RDY_EN,
                                //   INT_ANYRD_2CLEAR
     else
-        gyro->_data[5] = 0x00;
+        gyro->_data[5] = 0x00; // no interrupts
 
     // setup i2c transfer
     gyro->_i2c_header.first = &(gyro->_i2c_segments[0]);

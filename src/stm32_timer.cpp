@@ -6,8 +6,6 @@
  */
 
 #include "stm32_timer.h"
-#include "cmsis_device.h"
-#include "adahrs_definitions.h"
 #include "isr_def.h"
 
 // ----------------------------------------------------------------------------
@@ -99,9 +97,13 @@ void TimerList::remove(Timer* t)
 {
     start_critical_section();
     
+    uint32_t ccount = t->count;
     if (head == t)
     {
         head = t->next;
+        // add the count to the next item
+        if (head != nullptr)
+            head->count += ccount;
     }
     else
     {
@@ -110,10 +112,9 @@ void TimerList::remove(Timer* t)
         {
             if (prev->next == t)
             {
-                // add the count to following item
-                uint32_t ccount = prev->next->count;
                 // remove t from the list
                 prev->next = t->next;
+                // add the count to following item
                 if (t->next != nullptr)
                     t->next->count += ccount;
                 break;
@@ -130,19 +131,51 @@ void TimerList::tick()
     if (head == nullptr)
         return;
 
+    Timer* expired = nullptr;
+    Timer* expired_tail = nullptr;
+    
     start_critical_section();
 
     if (--head->count == 0) {
-        head->state = Timer::Done;
-        head = head->next;
         while (head != nullptr && head->count == 0)
         {
+            if (expired == nullptr)
+            {
+                expired = head;
+                expired->next = nullptr;
+            }
+            else
+                expired_tail->next = head;
+            expired_tail = head;
             head->state = Timer::Done;
             head = head->next;
         }
     }
 
     end_critical_section();
+
+    // now call completion functions on all timers that have them
+    expired_tail = expired;
+    while (expired_tail != nullptr)
+    {
+        // save the next pointer, it may get changed if timer reinserted
+        // into timer list
+        Timer* nxt = expired_tail->next;
+        // if the function is non-null, execute it
+        if (expired_tail->timer_fn != nullptr)
+        {
+            expired_tail->timer_fn(expired_tail->timer_fn_data);
+            // if a periodic timer, put it back in the list
+            if (expired_tail->type == Timer::Periodic)
+            {
+                expired_tail->state = Timer::Active;
+                insert(expired_tail);
+            }
+            else
+                expired_tail->state = Timer::Idle;
+        }
+        expired_tail = nxt;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -153,7 +186,8 @@ static TimerList timer_list;
 // ----------------------------------------------------------------------------
 
 Timer::Timer()
-    : state(Idle), type(OneShot), length(0), count(0), next(nullptr)
+    : state(Idle), type(OneShot), length(0), count(0), next(nullptr),
+      timer_fn(nullptr), timer_fn_data(nullptr)
 {
     static bool initialized = false;
     
@@ -191,7 +225,7 @@ Timer::Timer()
 }
 
 int
-Timer::start(unsigned int microseconds, TimerType timer_type)
+Timer::start(uint32_t microseconds, TimerType timer_type)
 {
     if (state != Idle)
     {
@@ -202,6 +236,30 @@ Timer::start(unsigned int microseconds, TimerType timer_type)
     state = Active;
     type = timer_type;
     length = microseconds / MS_PER_TICK;
+    timer_fn = nullptr;
+    timer_fn_data = nullptr;
+    
+    // add the timer to the active timer list
+    timer_list.insert(this);
+    
+    return 0;
+}
+
+int
+Timer::start(uint32_t microseconds, void (*timeout_fn)(void*), void* timeout_fn_data,
+             TimerType timer_type)
+{
+    if (state != Idle)
+    {
+        return -1;
+    }
+    
+    // initialize the software timer
+    state = Active;
+    type = timer_type;
+    length = microseconds / MS_PER_TICK;
+    timer_fn = timeout_fn;
+    timer_fn_data = timeout_fn_data;
     
     // add the timer to the active timer list
     timer_list.insert(this);
@@ -212,7 +270,7 @@ Timer::start(unsigned int microseconds, TimerType timer_type)
 int
 Timer::wait_for()
 {
-    if (state != Active)
+    if (state != Active || timer_fn != nullptr)
     {
         return -1;
     }

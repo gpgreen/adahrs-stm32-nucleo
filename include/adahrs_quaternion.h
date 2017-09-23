@@ -20,10 +20,10 @@ public:
     explicit Quaternion(float a, float b, float c, float d);
     Quaternion(const Quaternion& src);
 
-    float a() const;
-    float b() const;
-    float c() const;
-    float d() const;
+    float a() const { return _a; }
+    float b() const { return _b; }
+    float c() const { return _c; }
+    float d() const { return _d; }
     
     // operators
     Quaternion& operator =(const Quaternion& src);

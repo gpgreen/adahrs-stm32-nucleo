@@ -40,6 +40,11 @@ public:
     // convert the retrieved data to corrected values
     void correct_sensor_data();
 
+    int16_t temperature()
+    {
+        return _temp;
+    }
+    
     int16_t get_raw_gyros(int axis)
     {
         return _raw_gyro[axis];

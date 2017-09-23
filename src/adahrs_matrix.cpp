@@ -99,6 +99,23 @@ Matrix& Matrix::operator +=(const Matrix& rhs)
     return *this;
 }
 
+Matrix& Matrix::operator -=(const Matrix& rhs)
+{
+    if (_rows != rhs._rows || _cols != rhs._cols)
+    {
+        while (1);
+    }
+
+    for (int i=0; i<rhs._rows; ++i)
+    {
+        for (int j=0; j<rhs._cols; ++j)
+        {
+            _data[i][j] -= rhs._data[i][j];
+        }
+    }
+    return *this;
+}
+
 Matrix& Matrix::operator *= (const Matrix& rhs)
 {
     if (_cols != rhs._rows)

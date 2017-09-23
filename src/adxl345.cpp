@@ -133,23 +133,26 @@ void ADXL345::init_stage2()
 
     // setup interrupt control registers
 
-    // TODO: what about no interrupts?
-    
     // disable interrupts
     _data[0] = ADXL_INT_ENABLE;
-    _data[1] = 0x00;
+    _data[1] = 0x0;
     // set interrupts to pin int1
     _data[2] = ADXL_INT_MAP;
     _data[3] = 0x0;
     // enable DATA_READY interrupt
-    _data[4] = ADXL_INT_ENABLE;
-    _data[5] = 0x80;
+    if (_use_interrupt)
+    {
+        _data[4] = ADXL_INT_ENABLE;
+        _data[5] = 0x80;
+    }
     
     // setup i2c transfer
     _i2c_header.first = &_i2c_segments[0];
     _bus->init_segment(&_i2c_segments[0], TransmitWithStop, &_data[0], 2, &_i2c_segments[1]);
-    _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 2, &_i2c_segments[2]);
-    _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
+    _bus->init_segment(&_i2c_segments[1], TransmitWithStop, &_data[2], 2,
+                       _use_interrupt ? &_i2c_segments[2] : nullptr);
+    if (_use_interrupt)
+        _bus->init_segment(&_i2c_segments[2], TransmitWithStop, &_data[4], 2, nullptr);
     
     if (!_bus->send_receive(&_i2c_header, ADXL345::bus_callback, this))
     {
