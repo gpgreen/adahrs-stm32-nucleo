@@ -8,6 +8,8 @@
 #ifndef ADAHRS_CONFIG_DEF_H_
 #define ADAHRS_CONFIG_DEF_H_
 
+#include "cmsis_device.h"
+
 // ----------------------------------------------------------------------------
 // Define the firmware revision
 #define	UM6_FIRMWARE_REVISION		(('U' << 24) | ('M' << 16) | ('2' << 8) | 'C')
@@ -35,9 +37,9 @@
 #define	COMMAND_COUNT			11
 
 // 
-#define	CONFIG_REG_START_ADDRESS	0
-#define	DATA_REG_START_ADDRESS		85
-#define	COMMAND_START_ADDRESS		170
+const uint8_t CONFIG_REG_START_ADDRESS =	0;
+const uint8_t DATA_REG_START_ADDRESS =	        85;
+const uint8_t COMMAND_START_ADDRESS =	        170;
 
 // These preprocessor definitions make it easier to access specific
 // configuration parameters in code They specify array locations
@@ -194,20 +196,20 @@
 // 1. Copy data to the relevant register if data was provided in the packet
 // 2. Call a "dispatch packet" function that performs additional functions if the packet requires it.
 // Step 2 is what handles commands and causes status packets to be returned.
-#define	UM6_GET_FW_VERSION	        COMMAND_START_ADDRESS		// Causes the UM6 to report the firmware revision
-#define	UM6_FLASH_COMMIT		(COMMAND_START_ADDRESS + 1)	// Causes the UM6 to write all configuration values to FLASH
-#define	UM6_ZERO_GYROS			(COMMAND_START_ADDRESS + 2)	// Causes the UM6 to start a zero gyros command
-#define	UM6_RESET_EKF 			(COMMAND_START_ADDRESS + 3)	// Causes the UM6 to reset the EKF
-#define	UM6_GET_DATA 			(COMMAND_START_ADDRESS + 4)	// Causes the UM6 to transmit a data packet containing data from all enabled channels
-#define	UM6_SET_ACCEL_REF		(COMMAND_START_ADDRESS + 5)	// Causes the UM6 to set the current measured accel data to the reference vector
-#define	UM6_SET_MAG_REF			(COMMAND_START_ADDRESS + 6)	// Causes the UM6 to set the current measured magnetometer data to the reference vector
-#define	UM6_RESET_TO_FACTORY	        (COMMAND_START_ADDRESS + 7)	// Causes the UM6 to load default factory settings
+const int UM6_GET_FW_VERSION =	        COMMAND_START_ADDRESS;		// Causes the UM6 to report the firmware revision
+const int UM6_FLASH_COMMIT =		(COMMAND_START_ADDRESS + 1);	// Causes the UM6 to write all configuration values to FLASH
+const int UM6_ZERO_GYROS =		(COMMAND_START_ADDRESS + 2);	// Causes the UM6 to start a zero gyros command
+const int UM6_RESET_EKF =		(COMMAND_START_ADDRESS + 3);	// Causes the UM6 to reset the EKF
+const int UM6_GET_DATA =		(COMMAND_START_ADDRESS + 4);	// Causes the UM6 to transmit a data packet containing data from all enabled channels
+const int UM6_SET_ACCEL_REF =		(COMMAND_START_ADDRESS + 5);	// Causes the UM6 to set the current measured accel data to the reference vector
+const int UM6_SET_MAG_REF =		(COMMAND_START_ADDRESS + 6);	// Causes the UM6 to set the current measured magnetometer data to the reference vector
+const int UM6_RESET_TO_FACTORY =	(COMMAND_START_ADDRESS + 7);	// Causes the UM6 to load default factory settings
 
-#define	UM6_SAVE_FACTORY		(COMMAND_START_ADDRESS + 8)	// Causes the UM6 to save the current settings to the factory flash location
+const int UM6_SAVE_FACTORY =		(COMMAND_START_ADDRESS + 8);	// Causes the UM6 to save the current settings to the factory flash location
 
-#define UM6_SET_HOME_POSITION	        (COMMAND_START_ADDRESS + 9)	// Causes the UM6 to save the current GPS position as the "home" position (used to compute relative position)
+const int UM6_SET_HOME_POSITION =	(COMMAND_START_ADDRESS + 9);	// Causes the UM6 to save the current GPS position as the "home" position (used to compute relative position)
 
-#define UM6_USE_EXT_MAG	                (COMMAND_START_ADDRESS + 10)    // use the external magnetic sensor values, and run the EKF
+const int UM6_USE_EXT_MAG =	        (COMMAND_START_ADDRESS + 10);   // use the external magnetic sensor values, and run the EKF
 
 #define	UM6_USE_CONFIG_ADDRESS		0
 #define	UM6_USE_FACTORY_ADDRESS		1

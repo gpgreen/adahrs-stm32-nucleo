@@ -41,7 +41,7 @@ static ITG3200* s_device_0;
 // ----------------------------------------------------------------------------
 
 ITG3200::ITG3200(I2C* bus)
-    : _bus(bus), _state(0), _temp(0), _use_interrupt(true),
+    : _bus(bus), _state(0), _use_interrupt(true),
       _retries(0), _missed_converts(0)
 {
     _i2c_header.clock_speed = 100000;
@@ -50,18 +50,9 @@ ITG3200::ITG3200(I2C* bus)
     s_device_0 = this;
 }
 
-void ITG3200::begin(bool use_interrupt, int16_t* sign_map, uint8_t* axis_map,
-                    uint8_t priority, uint8_t subpriority)
+void ITG3200::begin(bool use_interrupt, uint8_t priority, uint8_t subpriority)
 {
     _use_interrupt = use_interrupt;
-    
-    _sign_map[0] = sign_map[0];
-    _sign_map[1] = sign_map[1];
-    _sign_map[2] = sign_map[2];
-    _axis_map[0] = axis_map[0];
-    _axis_map[1] = axis_map[1];
-    _axis_map[2] = axis_map[2];
-
     _state = 1;
 
     if (_use_interrupt)
@@ -203,18 +194,15 @@ bool ITG3200::sensor_data_received()
     return _state == 12;
 }
 
-void ITG3200::correct_sensor_data()
+void ITG3200::retrieve_sensor_data(int16_t& temp,
+                                   int16_t& gyro_x,
+                                   int16_t& gyro_y,
+                                   int16_t& gyro_z)
 {
-    // data is now in the buffer, do conversions
-    _temp = static_cast<int16_t>((_data[1] << 8) | _data[0]);
-    _raw_gyro[0] = static_cast<int16_t>((_data[3] << 8) | _data[2]);
-    _raw_gyro[1] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
-    _raw_gyro[2] = static_cast<int16_t>((_data[7] << 8) | _data[6]);
-
-    _corrected_gyro[0] = static_cast<int16_t>(_sign_map[0] * _raw_gyro[_axis_map[0]]);
-    _corrected_gyro[1] = static_cast<int16_t>(_sign_map[1] * _raw_gyro[_axis_map[1]]);
-    _corrected_gyro[2] = static_cast<int16_t>(_sign_map[2] * _raw_gyro[_axis_map[2]]);
-    
+    temp = static_cast<int16_t>((_data[0] << 8) | _data[1]);
+    gyro_x = static_cast<int16_t>((_data[2] << 8) | _data[3]);
+    gyro_y = static_cast<int16_t>((_data[4] << 8) | _data[5]);
+    gyro_z = static_cast<int16_t>((_data[6] << 8) | _data[7]);
     _state = 10;
 }
 
@@ -261,7 +249,7 @@ void ITG3200::bus_callback(void *data)
 void EXTI1_IRQHandler(void)
 {	 
     // Check for interrupt from accelerometer
-    if(EXTI_GetITStatus(EXTI_Line1) != RESET)
+    if (EXTI_GetITStatus(EXTI_Line1) != RESET)
     {		  
         EXTI_ClearITPendingBit(EXTI_Line1);
         ITG3200::get_data_trigger(s_device_0);

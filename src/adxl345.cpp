@@ -62,18 +62,10 @@ ADXL345::ADXL345(I2C* bus)
     s_device_0 = this;
 }
 
-void ADXL345::begin(bool use_interrupt, int16_t* sign_map, uint8_t* axis_map,
+void ADXL345::begin(DataRate rate, bool use_interrupt,
                     uint8_t priority, uint8_t subpriority)
 {
     _use_interrupt = use_interrupt;
-    
-    _sign_map[0] = sign_map[0];
-    _sign_map[1] = sign_map[1];
-    _sign_map[2] = sign_map[2];
-    _axis_map[0] = axis_map[0];
-    _axis_map[1] = axis_map[1];
-    _axis_map[2] = axis_map[2];
-
     _state = 1;
 
     if (_use_interrupt)
@@ -105,7 +97,19 @@ void ADXL345::begin(bool use_interrupt, int16_t* sign_map, uint8_t* axis_map,
         // Enable external interrupt 0
         GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
     }
-    
+    uint8_t bwrate = 0;
+    if (rate == HZ_400)
+        bwrate = 0xc;
+    else if (rate == HZ_200)
+        bwrate = 0xb;
+    else if (rate == HZ_100)
+        bwrate = 0xa;
+    else if (rate == HZ_50)
+        bwrate = 0x9;
+    else if (rate == HZ_25)
+        bwrate = 0x8;
+    else if (rate == HZ_12_5)
+        bwrate = 0x7;
     // full resolution, 16g, interrupt ACTIVE_HIGH
     _data[0] = ADXL_DATA_FORMAT;
     _data[1] = 0x0b;
@@ -114,7 +118,7 @@ void ADXL345::begin(bool use_interrupt, int16_t* sign_map, uint8_t* axis_map,
     _data[3] = 0x0a;
     // place in measurement mode, last
     _data[4] = ADXL_POWER_CTL;
-    _data[5] = 0x8;
+    _data[5] = bwrate;
     
     // setup i2c transfer
     _i2c_header.first = &_i2c_segments[0];
@@ -209,19 +213,16 @@ void ADXL345::retry_send(void* data)
     }
 }
 
-// take set of raw values retrieved from i2c, convert to corrected
-// sensor readings, reset state so we can get new data
-void ADXL345::correct_sensor_data()
+// take set of raw values retrieved from i2c, copy to variables
+// reset state so we can get new data
+void ADXL345::retrieve_sensor_data(int16_t& accel_x,
+                                   int16_t& accel_y,
+                                   int16_t& accel_z)
 {
-    // data is now in the buffer, do conversions
-    _raw_accel[0] = static_cast<int16_t>((_data[1] << 8) | _data[0]);
-    _raw_accel[1] = static_cast<int16_t>((_data[3] << 8) | _data[2]);
-    _raw_accel[2] = static_cast<int16_t>((_data[5] << 8) | _data[4]);
-
-    _corrected_accel[0] = static_cast<int16_t>(_sign_map[0] * _raw_accel[_axis_map[0]]);
-    _corrected_accel[1] = static_cast<int16_t>(_sign_map[1] * _raw_accel[_axis_map[1]]);
-    _corrected_accel[2] = static_cast<int16_t>(_sign_map[2] * _raw_accel[_axis_map[2]]);
-    
+    // data is now in the buffer
+    accel_x = static_cast<int16_t>((_data[1] << 8) | _data[0]);
+    accel_y = static_cast<int16_t>((_data[3] << 8) | _data[2]);
+    accel_z = static_cast<int16_t>((_data[5] << 8) | _data[4]);
     _state = 10;
 }
 
@@ -267,7 +268,7 @@ void ADXL345::bus_callback(void *data)
 void EXTI0_IRQHandler(void)
 {	 
     // Check for interrupt from accelerometer
-    if(EXTI_GetITStatus(EXTI_Line0) != RESET)
+    if (EXTI_GetITStatus(EXTI_Line0) != RESET)
     {		  
         EXTI_ClearITPendingBit(EXTI_Line0);
         ADXL345::get_data_trigger(s_device_0);

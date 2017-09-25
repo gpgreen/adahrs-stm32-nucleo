@@ -13,6 +13,7 @@
 #include "adahrs_init.h"
 #include "adahrs_config.h"
 #include "adahrs_states.h"
+#include "adahrs_command.h"
 #include "adahrs_ekf.h"
 #include "stm32_timer.h"
 #include "stm32_usart.h"
@@ -62,7 +63,9 @@
 // Timer
 //   - TIM3
 // EKF
-//   - TIM4
+//   - TIM4 (for update interval length)
+// ADAHRSCommand
+//   - TIMx (timer to be determined)
 // ----------------------------------------------------------------------------
 
 int main(int, char**);
@@ -78,16 +81,13 @@ int main(int, char**);
 ADAHRSConfig config;
 ADAHRSInit init;
 ADAHRSSensorData state;
-
-// adjustments for device axes
-// axis_map - which axis is x,y,z
-// sign_map - reverse direction on an axis if -1
-uint8_t axis_map[3] = {0, 1, 2};
-int16_t sign_map[3] = {1, 1, 1};
+ADAHRSCommand command;
+EKF ekf;
 
 // global flag for gyro data retrieval
 volatile int g_get_gyro_data = 0;
 
+// whenever the timer expires, flag that we want new gyro data
 static void gyro_timer_expired(void* /*data*/)
 {
     g_get_gyro_data = 1;
@@ -105,31 +105,27 @@ main(int /*argc*/, char* /*argv*/[])
     // ADCCLK: 36 MHz
     
     // initialize devices
-    init.begin(&config, &state);
+    init.begin(&config, &state, &command, &ekf);
     
     Timer t0;
 
-    // start the accel sensor
+    // start the accel sensor, 50 hz, interrupts on
     ADXL345 adxl(&i2c1);
-    adxl.begin(true, sign_map, axis_map, ADXL_IRQ_PRIORITY, 0);
+    adxl.begin(ADXL345::HZ_50, true, ADXL_IRQ_PRIORITY, 0);
     // now sleep for 50ms
     t0.start(50000, Timer::OneShot);
     t0.wait_for();
     
     // start the gyro sensor, no interrupts
     ITG3200 gyro(&i2c1);
-    gyro.begin(false, sign_map, axis_map, ITG_IRQ_PRIORITY, 0);
+    gyro.begin(false, ITG_IRQ_PRIORITY, 0);
     // now sleep for 100ms
     t0.start(100000, Timer::OneShot);
     t0.wait_for();
 
-    // initialize the kalman filter
-    EKF ekf;
-    ekf.begin(&config, &state);
-
-    // timer to trigger getting gyro data
+    // timer to trigger getting gyro data every 10ms
     Timer gyrodata;
-    gyrodata.start(100000, gyro_timer_expired, nullptr, Timer::Periodic);
+    gyrodata.start(10000, gyro_timer_expired, nullptr, Timer::Periodic);
     
     // Infinite loop
     usart1.transmit("hello!\r\n", 8);
@@ -146,13 +142,24 @@ main(int /*argc*/, char* /*argv*/[])
         //t0.start(BLINK_OFF_TICKS);
         //t0.wait_for();
 
+        // process data from the uart
+        command.process_next_character();
+
+        // send packets to uart
+        command.send_next_packet();
+
+        // if we've received a packet, process it
+        if (command.have_new_packet())
+        {
+            command.process_rx_packet();
+        }
+        
         // is there new data from the accelerometer?
         if (adxl.sensor_data_received())
         {
-            adxl.correct_sensor_data();
-            state.raw_data.accel_x = adxl.get_corrected_accel(0);
-            state.raw_data.accel_y = adxl.get_corrected_accel(1);
-            state.raw_data.accel_z = adxl.get_corrected_accel(2);
+            adxl.retrieve_sensor_data(state.raw_data.accel_x,
+                                      state.raw_data.accel_y,
+                                      state.raw_data.accel_z);
             state.raw_data.new_accel_data = 1;
         }
         
@@ -166,15 +173,14 @@ main(int /*argc*/, char* /*argv*/[])
         // is there data available from the gyros?
         if (gyro.sensor_data_received())
         {
-            gyro.correct_sensor_data();
-            state.raw_data.temperature = gyro.temperature();
-            state.raw_data.gyro_x = gyro.get_corrected_gyro(0);
-            state.raw_data.gyro_y = gyro.get_corrected_gyro(1);
-            state.raw_data.gyro_z = gyro.get_corrected_gyro(2);
+            gyro.retrieve_sensor_data(state.raw_data.temperature,
+                                      state.raw_data.gyro_x,
+                                      state.raw_data.gyro_y,
+                                      state.raw_data.gyro_z);
             state.raw_data.new_gyro_data = 1;
         }
 
-        // do the EKF if required
+        // update the kalman filter
         if (state.raw_data.new_gyro_data || state.raw_data.new_accel_data)
         {
             ekf.estimate_states();

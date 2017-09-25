@@ -128,7 +128,7 @@ void EKF::convert_raw_sensor_data()
                 + state_data->beta_r2 * temp2 + state_data->beta_r3 * temp3));
 
     // multiply gyro measuments by alignment matrix (fixes cross-axis alignment)
-    svec *= state_data->gyro_cal;
+    svec = state_data->gyro_cal * svec;
 
     // Copy new gyro data to state_data structure
     state_data->gyro_x = svec.get(0, 0);
@@ -140,7 +140,7 @@ void EKF::convert_raw_sensor_data()
     svec.set(1, 0, static_cast<float>(sensor_data->accel_y - state_data->beta_acc_y));
     svec.set(2, 0, static_cast<float>(sensor_data->accel_z - state_data->beta_acc_z));
 	 
-    svec *= state_data->accel_cal;
+    svec = state_data->accel_cal * svec;
 	 
     state_data->accel_x = svec.get(0, 0);
     state_data->accel_y = svec.get(1, 0);
@@ -151,7 +151,7 @@ void EKF::convert_raw_sensor_data()
     svec.set(1, 0, static_cast<float>(sensor_data->mag_y - state_data->beta_mag_y));
     svec.set(2, 0, static_cast<float>(sensor_data->mag_z - state_data->beta_mag_z));
 
-    svec *= state_data->mag_cal;
+    svec = state_data->mag_cal * svec;
 	 
     state_data->mag_x = svec.get(0, 0);
     state_data->mag_y = svec.get(1, 0);

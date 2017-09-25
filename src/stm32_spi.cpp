@@ -239,12 +239,12 @@ void SPI::tx_start()
 
     // Configure the tx DMA controller to make the transfer
     if (_devno == 1)
-        DMA_txInit.DMA_PeripheralBaseAddr = (uint32_t) &(SPI1->DR);
+        DMA_txInit.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(SPI1->DR));
     else if (_devno == 2)
-        DMA_txInit.DMA_PeripheralBaseAddr = (uint32_t) &(SPI2->DR);
+        DMA_txInit.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(SPI2->DR));
     else if (_devno == 3)
-        DMA_txInit.DMA_PeripheralBaseAddr = (uint32_t) &(SPI3->DR);
-    DMA_txInit.DMA_MemoryBaseAddr = (uint32_t) _tx_buffer;
+        DMA_txInit.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(SPI3->DR));
+    DMA_txInit.DMA_MemoryBaseAddr = reinterpret_cast<uint32_t>(_tx_buffer);
     DMA_txInit.DMA_DIR = DMA_DIR_PeripheralDST;
     DMA_txInit.DMA_BufferSize = _buffer_len;
     DMA_txInit.DMA_PeripheralInc = DMA_PeripheralInc_Disable;

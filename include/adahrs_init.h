@@ -13,6 +13,8 @@
 #include "isr_def.h"
 #include "adahrs_config.h"
 #include "adahrs_states.h"
+#include "adahrs_command.h"
+#include "adahrs_ekf.h"
 
 // ----------------------------------------------------------------------------
 
@@ -21,7 +23,8 @@ class ADAHRSInit
 public:
     explicit ADAHRSInit();
 
-    void begin(ADAHRSConfig* config, ADAHRSSensorData* state);
+    void begin(ADAHRSConfig* config, ADAHRSSensorData* state,
+               ADAHRSCommand* command, EKF* ekf);
 
 private:
     void configure_led();

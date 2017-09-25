@@ -64,6 +64,30 @@ void ADAHRSConfig::set_register(int addr, uint32_t data)
         while(1);
 }
 
+void ADAHRSConfig::set_register(int addr, float data)
+{
+    float f = data;
+    if (addr >= DATA_REG_START_ADDRESS && addr < COMMAND_START_ADDRESS)
+        _data_reg[addr - DATA_REG_START_ADDRESS] = *reinterpret_cast<uint32_t*>(&f);
+    else if (addr < COMMAND_START_ADDRESS)
+        _config_reg[addr] = *reinterpret_cast<uint32_t*>(&f);
+    else
+        while(1);
+}
+
+void ADAHRSConfig::set_register(int addr, uint8_t b1, uint8_t b2,
+                                uint8_t b3, uint8_t b4)
+{
+    uint32_t* reg;
+    if (addr >= DATA_REG_START_ADDRESS && addr < COMMAND_START_ADDRESS)
+        reg = &_data_reg[addr - DATA_REG_START_ADDRESS];
+    else if (addr < COMMAND_START_ADDRESS)
+        reg = &_config_reg[addr];
+    else
+        while(1);
+    *reg = b1 | (b2 << 8) | (b3 << 16) | (b4 << 24);
+}
+
 // write all configuration data to flash memory
 int ADAHRSConfig::write_config_to_flash(int write_location_flag)
 {
@@ -89,7 +113,7 @@ int ADAHRSConfig::write_config_to_flash(int write_location_flag)
     {
         FLASHStatus = FLASH_ErasePage((uint32_t)(flash_start_address + i));
 		  
-        if( FLASHStatus != FLASH_COMPLETE )
+        if (FLASHStatus != FLASH_COMPLETE)
         {
             FLASH_Lock();
             return FLASHStatus;
@@ -102,7 +126,7 @@ int ADAHRSConfig::write_config_to_flash(int write_location_flag)
         // Write FLASH data
         FLASHStatus = FLASH_ProgramWord((uint32_t)(flash_start_address + i), _config_reg[i]);
 	
-        if( FLASHStatus != FLASH_COMPLETE )
+        if (FLASHStatus != FLASH_COMPLETE)
         {
             FLASH_Lock();
             return FLASHStatus;

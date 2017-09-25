@@ -247,10 +247,10 @@ void I2C::tx_start()
 
     // Configure the tx DMA controller to make the transfer
     if (_devno == 1)
-        DMA_Init.DMA_PeripheralBaseAddr = (uint32_t) &(I2C1->DR);
+        DMA_Init.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(I2C1->DR));
     else if (_devno == 2)
-        DMA_Init.DMA_PeripheralBaseAddr = (uint32_t) &(I2C2->DR);
-    DMA_Init.DMA_MemoryBaseAddr = (uint32_t) seg->databuf;
+        DMA_Init.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(I2C2->DR));
+    DMA_Init.DMA_MemoryBaseAddr = reinterpret_cast<uint32_t>(seg->databuf);
     // sending or receiving
     DMA_Init.DMA_DIR = receive ? DMA_DIR_PeripheralSRC : DMA_DIR_PeripheralDST;
     DMA_Init.DMA_BufferSize = seg->buflen;

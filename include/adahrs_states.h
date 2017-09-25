@@ -232,6 +232,7 @@ public:
     void copy_config_to_states(ADAHRSConfig* config);
 
     EKF_mode mode() const {return _mode;}
+    void set_mode(EKF_mode newmode) {_mode = newmode;}
 
 private:
 
@@ -243,27 +244,6 @@ private:
 };
 
 #pragma GCC diagnostic pop
-
-#if 0
-
-// Function declarations
-void EKF_Init( AHRS_state_data* estimated_states );
-void EKF_InitFromSensors( AHRS_state_data* estimated_states, RawSensorData* sensor_data );
-void EKF_EstimateStates( AHRS_state_data* estimated_states, RawSensorData* sensor_data );
-void EKF_Predict( AHRS_state_data* estimated_states, RawSensorData* sensor_data );
-void EKF_Update( AHRS_state_data* estimated_states, RawSensorData* sensor_data );
-void EKF_Correction( fMatrix* C, float sensor_data, float sensor_hat, float sensor_covariance, AHRS_state_data* estimated_states, int sensor_type );
-
-void ConvertRawSensorData( AHRS_state_data* estimated_states, RawSensorData* sensor_data );
-
-#define		MAG_UPDATE			0
-#define		ACCEL_UPDATE		1
-
-void compute_euler_angles( AHRS_state_data* estimated_states );
-
-void unroll_states( AHRS_state_data* states );
-
-#endif
 
 // ----------------------------------------------------------------------------
 

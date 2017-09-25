@@ -19,7 +19,8 @@ ADAHRSInit::ADAHRSInit()
     // does nothing else
 }
 
-void ADAHRSInit::begin(ADAHRSConfig* config, ADAHRSSensorData* state)
+void ADAHRSInit::begin(ADAHRSConfig* config, ADAHRSSensorData* state,
+                       ADAHRSCommand* command, EKF* ekf)
 {
     // assign all priority bits to preempt, none to subpriority
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
@@ -30,6 +31,9 @@ void ADAHRSInit::begin(ADAHRSConfig* config, ADAHRSSensorData* state)
     // initialize state from config
     state->begin(config);
     
+    // initialize the kalman filter
+    ekf->begin(config, state);
+
     // configure DMA channels
     DMA1Channel2.begin(DMA1_IRQ_PRIORITY, 0);
     DMA1Channel3.begin(DMA1_IRQ_PRIORITY, 0);
@@ -47,6 +51,9 @@ void ADAHRSInit::begin(ADAHRSConfig* config, ADAHRSSensorData* state)
     // configure i2c1
     i2c1.begin(false, I2C1_IRQ_PRIORITY, 0);
 
+    // configure command
+    command->begin(&usart1, config, state, ekf);
+    
     // configure work queue (initializes and starts TIM2)
     g_work_queue.begin(WORKQUEUE_IRQ_PRIORITY, 0);
     

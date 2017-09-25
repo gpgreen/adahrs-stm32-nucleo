@@ -25,6 +25,9 @@ public:
 
     // initialize the USART hardware
     void begin(int baud_rate, uint8_t priority, uint8_t subpriority);
+
+    // change the baud rate
+    void change_baud_rate(int baud_rate);
     
     // transmit some data, return false if buffer full
     bool transmit(const char* txdata, int len);

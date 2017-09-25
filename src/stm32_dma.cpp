@@ -147,12 +147,12 @@ void DMA::priv_complete_transaction()
 
 DMA DMA1Channel1(DMA1_Channel1);
 
-void DMA1_Channel1_IRQHandler( void )
+void DMA1_Channel1_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA1_IT_TC1 ) != RESET )
+    if (DMA_GetITStatus(DMA1_IT_TC1) != RESET)
     {
-        DMA_ClearFlag( DMA1_IT_TC1 );
+        DMA_ClearFlag(DMA1_IT_TC1);
         DMA1Channel1.priv_complete_transaction();
     }
 }
@@ -163,12 +163,12 @@ void DMA1_Channel1_IRQHandler( void )
 
 DMA DMA1Channel2(DMA1_Channel2);
 
-void DMA1_Channel2_IRQHandler( void )
+void DMA1_Channel2_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA1_IT_TC2 ) != RESET )
+    if (DMA_GetITStatus(DMA1_IT_TC2) != RESET)
     {
-        DMA_ClearFlag( DMA1_IT_TC2 );
+        DMA_ClearFlag(DMA1_IT_TC2);
         DMA1Channel2.priv_complete_transaction();
     }
 }
@@ -179,12 +179,12 @@ void DMA1_Channel2_IRQHandler( void )
 
 DMA DMA1Channel3(DMA1_Channel3);
 
-void DMA1_Channel3_IRQHandler( void )
+void DMA1_Channel3_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA1_IT_TC3 ) != RESET )
+    if (DMA_GetITStatus(DMA1_IT_TC3) != RESET)
     {
-        DMA_ClearFlag( DMA1_IT_TC3 );
+        DMA_ClearFlag(DMA1_IT_TC3);
         DMA1Channel3.priv_complete_transaction();
     }
 }
@@ -195,12 +195,12 @@ void DMA1_Channel3_IRQHandler( void )
 
 DMA DMA1Channel4(DMA1_Channel4);
 
-void DMA1_Channel4_IRQHandler( void )
+void DMA1_Channel4_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA1_IT_TC4 ) != RESET )
+    if (DMA_GetITStatus(DMA1_IT_TC4) != RESET)
     {
-        DMA_ClearFlag( DMA1_IT_TC4 );
+        DMA_ClearFlag(DMA1_IT_TC4);
         DMA1Channel4.priv_complete_transaction();
     }
 }
@@ -211,12 +211,12 @@ void DMA1_Channel4_IRQHandler( void )
 
 DMA DMA1Channel5(DMA1_Channel5);
 
-void DMA1_Channel5_IRQHandler( void )
+void DMA1_Channel5_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA1_IT_TC5 ) != RESET )
+    if (DMA_GetITStatus(DMA1_IT_TC5) != RESET)
     {
-        DMA_ClearFlag( DMA1_IT_TC5 );
+        DMA_ClearFlag(DMA1_IT_TC5);
         DMA1Channel5.priv_complete_transaction();
     }
 }
@@ -261,12 +261,12 @@ void DMA1_Channel7_IRQHandler(void)
 
 DMA DMA2Channel1(DMA2_Channel1);
 
-void DMA2_Channel1_IRQHandler( void )
+void DMA2_Channel1_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA2_IT_TC1 ) != RESET )
+    if (DMA_GetITStatus(DMA2_IT_TC1) != RESET)
     {
-        DMA_ClearFlag( DMA2_IT_TC1 );
+        DMA_ClearFlag(DMA2_IT_TC1);
         DMA2Channel1.priv_complete_transaction();
     }
 }
@@ -277,12 +277,12 @@ void DMA2_Channel1_IRQHandler( void )
 
 DMA DMA2Channel2(DMA2_Channel2);
 
-void DMA2_Channel2_IRQHandler( void )
+void DMA2_Channel2_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA2_IT_TC2 ) != RESET )
+    if (DMA_GetITStatus(DMA2_IT_TC2) != RESET)
     {
-        DMA_ClearFlag( DMA2_IT_TC2 );
+        DMA_ClearFlag(DMA2_IT_TC2);
         DMA2Channel2.priv_complete_transaction();
     }
 }
@@ -293,12 +293,12 @@ void DMA2_Channel2_IRQHandler( void )
 
 DMA DMA2Channel3(DMA2_Channel3);
 
-void DMA2_Channel3_IRQHandler( void )
+void DMA2_Channel3_IRQHandler(void)
 {
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA2_IT_TC3 ) != RESET )
+    if (DMA_GetITStatus(DMA2_IT_TC3) != RESET)
     {
-        DMA_ClearFlag( DMA2_IT_TC3 );
+        DMA_ClearFlag(DMA2_IT_TC3);
         DMA2Channel3.priv_complete_transaction();
     }
 }
@@ -314,20 +314,25 @@ DMA DMA2Channel5(DMA2_Channel5);
 // ----- DMA2_Channel4_5_IRQHandler() ----------------------------------------------------
 #ifdef DMA2_CHANNEL4_USED || defined(DMA2_CHANNEL5_USED)
 
-void DMA2_Channel4_5_IRQHandler( void )
+void DMA2_Channel4_5_IRQHandler(void)
 {
+#ifdef DMA2_CHANNEL4_USED
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA2_IT_TC4 ) != RESET )
+    if (DMA_GetITStatus(DMA2_IT_TC4) != RESET)
     {
-        DMA_ClearFlag( DMA2_IT_TC4 );
+        DMA_ClearFlag(DMA2_IT_TC4);
         DMA2Channel4.priv_complete_transaction();
     }
+#endif
+    
+#ifdef DMA2_CHANNEL5_USED
     // Indicates that the TX buffer contents have been transmitted.
-    if( DMA_GetITStatus( DMA2_IT_TC5 ) != RESET )
+    if (DMA_GetITStatus(DMA2_IT_TC5) != RESET)
     {
-        DMA_ClearFlag( DMA2_IT_TC5 );
+        DMA_ClearFlag(DMA2_IT_TC5);
         DMA2Channel5.priv_complete_transaction();
     }
+#endif
 }
 #endif
 

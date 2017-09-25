@@ -20,12 +20,14 @@
 
 class ADXL345
 {
+    
 public:
+    enum DataRate {HZ_400, HZ_200, HZ_100, HZ_50, HZ_25, HZ_12_5};
+
     explicit ADXL345(I2C* bus);
 
     // initialize the hardware
-    void begin(bool use_interrupt,
-               int16_t* sign_map, uint8_t* axis_map,
+    void begin(DataRate rate, bool use_interrupt,
                uint8_t priority, uint8_t subpriority);
 
     // retrieve data, return false if not ready
@@ -38,19 +40,9 @@ public:
     }
 
     // convert the retrieved data to corrected values
-    void correct_sensor_data();
-
-    // the raw acceleration values per axis
-    int16_t get_raw_accel(int axis)
-    {
-        return _raw_accel[axis];
-    }
-
-    // the corrected acceleration values per axis
-    int16_t get_corrected_accel(int axis)
-    {
-        return _corrected_accel[axis];
-    }
+    void retrieve_sensor_data(int16_t& accel_x,
+                              int16_t& accel_y,
+                              int16_t& accel_z);
 
 private:
 
@@ -67,11 +59,7 @@ private:
     I2C* _bus;
     volatile int _state;
     uint8_t _data[8];
-    uint8_t _axis_map[3];
     bool _use_interrupt;
-    int16_t _sign_map[3];
-    int16_t _raw_accel[3];
-    int16_t _corrected_accel[3];
     volatile uint32_t _retries;
     volatile uint32_t _missed_converts;
 

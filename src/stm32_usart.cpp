@@ -135,6 +135,11 @@ void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
     USART_Cmd(_uart, ENABLE);
 }
 
+void USART::change_baud_rate(int /*baud_rate*/)
+{
+    // TODO
+}
+
 bool USART::transmit(const char* txdata, int len)
 {
     if (len + _tx_buffer_start > TX_BUFFER_SIZE)
@@ -181,12 +186,12 @@ void USART::tx_start()
 
     // Configure the DMA controller to make the transfer
     if (_devno == 1)
-        DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &(USART1->DR);
+        DMA_InitStructure.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(USART1->DR));
     else if (_devno == 2)
-        DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &(USART2->DR);
+        DMA_InitStructure.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(USART2->DR));
     else if (_devno == 3)
-        DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t) &(USART3->DR);
-    DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t) _tx_buf_p;
+        DMA_InitStructure.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(USART3->DR));
+    DMA_InitStructure.DMA_MemoryBaseAddr = reinterpret_cast<uint32_t>(_tx_buf_p);
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
     // set buffer size to difference between end of data, and start of send
     DMA_InitStructure.DMA_BufferSize = &_tx_buffer[_tx_buffer_start]
