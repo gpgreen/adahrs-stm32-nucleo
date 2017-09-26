@@ -22,6 +22,8 @@ public:
     enum TimerState { Idle, Active, Done };
     enum TimerType { OneShot, Periodic };
 
+    static void begin(uint8_t priority, uint8_t subpriority);
+    
     explicit Timer();
 
     // start the timer, wait_for must be called on timers started this way

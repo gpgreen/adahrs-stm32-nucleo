@@ -15,6 +15,13 @@
 /**
  * class to keep lists of timers
  * the list is ordered from soonest to expire to latest
+ * On each timer tick, the count on the timer at the head
+ * of the list is decremented. If timers have the same
+ * expiration, they will have a 'count' member that is
+ * zero and will be linked into the list. So when a timer
+ * reaches a count of zero, all later timers with a count
+ * of zero also expire. Timers with equal expiration will be
+ * placed in first in first out order.
  */
 class TimerList
 {
@@ -33,13 +40,15 @@ private:
     Timer* head;
 };
 
+// ----------------------------------------------------------------------------
+
 TimerList::TimerList()
     : head(nullptr)
 {
     // does nothing else
 }
 
-// === START critical section
+// === START critical section timer list data structure
 inline void TimerList::start_critical_section()
 {
     // critical section created by setting BASEPRI to a level
@@ -47,12 +56,15 @@ inline void TimerList::start_critical_section()
     __set_BASEPRI(TIMER_IRQ_MASKING);
 }
 
-// === END critical section
+// === END critical section for timer list data structure
 inline void TimerList::end_critical_section()
 {
     __set_BASEPRI(0U);
 }
 
+// put a new timer into the list
+// after the proper place is found for the timer in the list
+// the next timer will have it's count decremented
 void TimerList::insert(Timer* t)
 {
     uint32_t ccount = t->length; // this will become the count for the inserted timer
@@ -60,7 +72,7 @@ void TimerList::insert(Timer* t)
 
     start_critical_section();
     
-    // find the correct spot to insert timer, and put it in list
+    // find the correct spot to insert timer
     if (head == nullptr || head->count > ccount)
     {
         t->next = head;
@@ -81,18 +93,20 @@ void TimerList::insert(Timer* t)
         t->next = cur;
     }
     t->count = ccount;
-    // adjust count of all later timers
+    // adjust count of next timer
     Timer* cur = t->next;
-    while (cur != nullptr)
+    if (cur != nullptr)
     {
-        if (cur->count > 0)
-            cur->count -= ccount;
-        cur = cur->next;
+    	cur->count -= ccount;
     }
 
     end_critical_section();
 }
 
+// remove a timer from the list
+// once the timer is found, the next timer
+// will have it's count incremented to
+// account for this timer's removal
 void TimerList::remove(Timer* t)
 {
     start_critical_section();
@@ -125,7 +139,15 @@ void TimerList::remove(Timer* t)
     end_critical_section();
 }
 
-// called from IRQ
+// called from timer IRQ
+// decrement count on first timer in list
+// if the count has reached 0, timer is expired
+// all succeeeding timers with a count of 0 are also
+// expired.
+// keep track of expired timers in a temporary
+// list. Each of them will be checked for a
+// timeout fn, which will then be called. If
+// the timer is periodic, place it back in the list
 void TimerList::tick()
 {
     if (head == nullptr)
@@ -189,41 +211,37 @@ Timer::Timer()
     : state(Idle), type(OneShot), length(0), count(0), next(nullptr),
       timer_fn(nullptr), timer_fn_data(nullptr)
 {
-    static bool initialized = false;
-    
-    // Initialize the timer hardware, if not previously done
-    if (!initialized)
-    {
-        // do hardware initialization
-
-        // configure Timer3 for timer work
-        RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
-
-        // disable timer if enabled
-        TIM_Cmd(TIM3, DISABLE);
-    
-        TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-        TIM_TimeBaseStructure.TIM_Period = MS_PER_TICK - 1;
-        TIM_TimeBaseStructure.TIM_Prescaler = 72 - 1;
-        TIM_TimeBaseStructure.TIM_ClockDivision = 0;
-        TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
-        
-        TIM_DeInit(TIM3);
-        TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
-        
-        // Enable the TIM3 update Interrupt and set at lowest priority.
-        configure_nvic(TIM3_IRQn, TIMER_IRQ_PRIORITY, 0);
-        
-        // enable the timer
-        TIM_Cmd(TIM3, ENABLE);
-        
-        // enable the timer update interrupt
-        TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
-
-        initialized = true;
-    }
+    // does nothing else
 }
 
+void Timer::begin(uint8_t priority, uint8_t subpriority)
+{
+    // configure Timer3 for timer work
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
+    
+    // disable timer if enabled
+    TIM_Cmd(TIM3, DISABLE);
+    
+    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+    TIM_TimeBaseStructure.TIM_Period = MS_PER_TICK - 1;
+    TIM_TimeBaseStructure.TIM_Prescaler = 72 - 1;
+    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+    
+    TIM_DeInit(TIM3);
+    TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
+    
+    // Enable the TIM3 update Interrupt and set priority.
+    configure_nvic(TIM3_IRQn, priority, subpriority);
+    
+    // enable the timer
+    TIM_Cmd(TIM3, ENABLE);
+    
+    // enable the timer update interrupt
+    TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
+}
+
+// constructor to create version for use with wait_for
 int
 Timer::start(uint32_t microseconds, TimerType timer_type)
 {
@@ -245,6 +263,8 @@ Timer::start(uint32_t microseconds, TimerType timer_type)
     return 0;
 }
 
+// constructor to use with timeout function called when
+// expired
 int
 Timer::start(uint32_t microseconds, void (*timeout_fn)(void*), void* timeout_fn_data,
              TimerType timer_type)
@@ -267,6 +287,12 @@ Timer::start(uint32_t microseconds, void (*timeout_fn)(void*), void* timeout_fn_
     return 0;
 }
 
+// wait for timer to expire
+// will return -1 if timer is expired or has
+// a timeout function. Returns -1 for a timeout
+// function as that will be called and the timer
+// will never have state = Done for this function
+// to work
 int
 Timer::wait_for()
 {
@@ -292,6 +318,10 @@ Timer::wait_for()
     return 0;
 }
 
+// cancel the timer, due to interrupts
+// the timer may still expire after this
+// is called and it's timeout function
+// called before it is removed from the list
 void
 Timer::cancel()
 {

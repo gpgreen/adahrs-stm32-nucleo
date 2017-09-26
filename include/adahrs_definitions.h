@@ -26,8 +26,8 @@
 #define ADXL_IRQ_PRIORITY                5
 #define ITG_IRQ_PRIORITY                 5
 #define USART_IRQ_PRIORITY               6
-#define WORKQUEUE_IRQ_PRIORITY           0xf
-#define TIMER_IRQ_PRIORITY               0xe
+#define COMMAND_IRQ_PRIORITY             7
+#define TIMER_IRQ_PRIORITY               0xf
 #define WORKQUEUE_IRQ_MASKING            0x10 /* which irq priorities are masked 
                                                  in work queue critical section */
 #define USART_IRQ_MASKING                0x50 /* which irq priorities are masked 

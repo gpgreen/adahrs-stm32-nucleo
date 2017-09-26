@@ -10,9 +10,12 @@
 
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
+#include "stm32_timer.h"
 
 // ----------------------------------------------------------------------------
 
+// structure to pass to workqueue to hold work callback and user data pointer
+// for callback function argument
 struct WorkCallback
 {
     void (*callback)(void *);
@@ -24,11 +27,13 @@ class WorkQueue
 public:
     explicit WorkQueue();
 
-    void begin(uint8_t priority, uint8_t subpriority);
+    void begin();
     void process();
     void add_work_irq(void (*work_fn)(void *), void* data);
 
 private:
+    static void timeout(void*);
+    
     // define away copy constructor and assignment operator
     WorkQueue(const WorkQueue&);
     const WorkQueue& operator=(const WorkQueue&);
@@ -38,6 +43,7 @@ private:
     volatile uint32_t _queue_start;
     volatile uint32_t _queue_end;
     volatile uint32_t _processed;
+    Timer _timer;
 };
 
 // ----------------------------------------------------------------------------

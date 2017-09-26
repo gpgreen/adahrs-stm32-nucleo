@@ -38,6 +38,8 @@ public:
     USARTPacket();
     USARTPacket(const USARTPacket& pkt);
     USARTPacket& operator=(const USARTPacket& pkt);
+
+    uint16_t compute_checksum() const;
 };
 
 // ----------------------------------------------------------------------------
@@ -48,7 +50,7 @@ public:
     explicit ADAHRSCommand();
 
     void begin(USART* uart, ADAHRSConfig* config, ADAHRSSensorData* state,
-               EKF* ekf);
+               EKF* ekf, uint8_t priority, uint8_t subpriority);
 
     // main loop, check for new char, process it
     void process_next_character();
@@ -62,6 +64,9 @@ public:
         return _new_packet_received;
     }
 
+    // should we send sensor data?
+    bool broadcast_ready() const;
+    
     // process a new received packet
     void process_rx_packet();
 
@@ -81,10 +86,7 @@ public:
     void disable_broadcast_mode();
     void update_serial_baud();
     void start_gyro_calibration();
-    void send_data_packet();
-
-    // checksum on a packet
-    static uint16_t compute_checksum(USARTPacket* new_packet);
+    void broadcast();
 
 private:
 
@@ -98,6 +100,9 @@ private:
     void send_command_success_packet(uint8_t address);
     void send_command_failed_packet(uint8_t address);
 
+    // send out state data
+    void send_data_packets();
+    
     // private data for class
     
     USART* _uart;

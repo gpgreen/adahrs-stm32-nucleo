@@ -6,7 +6,6 @@
  */
 
 #include "work_queue.h"
-#include "isr_def.h"
 
 // ----------------------------------------------------------------------------
 
@@ -21,11 +20,8 @@ WorkQueue::WorkQueue()
     // does nothing else
 }
 
-void WorkQueue::begin(uint8_t priority, uint8_t subpriority)
+void WorkQueue::begin()
 {
-    // configure Timer2 for work queue
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
-
 #ifdef USE_WORKQUEUE_TRACE
     // setup pin
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -43,26 +39,8 @@ void WorkQueue::begin(uint8_t priority, uint8_t subpriority)
     GPIO_ResetBits(GPIOA, GPIO_Pin_3);
 #endif
 
-    // disable timer if enabled
-    TIM_Cmd(TIM2, DISABLE);
-    
-    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-    TIM_TimeBaseStructure.TIM_Period = 2000 - 1;
-    TIM_TimeBaseStructure.TIM_Prescaler = 72 - 1;
-    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
-    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
-
-    TIM_DeInit(TIM2);
-    TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
-
-    // Enable the TIM2 update Interrupt and set at lowest priority.
-    configure_nvic(TIM2_IRQn, priority, subpriority);
-
-    // enable the timer
-    TIM_Cmd(TIM2, ENABLE);
-
-    // enable the timer update interrupt
-    TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+    // workqueue will run every 20ms
+    _timer.start(20000, WorkQueue::timeout, this, Timer::Periodic);
 }
 
 // ----------------------------------------------------------------------------
@@ -138,14 +116,10 @@ void WorkQueue::add_work_irq(void (*work_fn)(void *), void* data)
     // === END critical section
 }
 
-// IRQ for work queue
-void TIM2_IRQHandler(void)
+// function to call when the timer has expired
+// process a work item
+void WorkQueue::timeout(void* data)
 {
-    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
-    {
-        // process the work queue
-        g_work_queue.process();
-        // clear pending interrupt bit
-        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-    }
+    WorkQueue* wq = reinterpret_cast<WorkQueue*>(data);
+    wq->process();
 }

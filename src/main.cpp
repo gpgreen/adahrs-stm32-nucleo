@@ -47,7 +47,6 @@
 // *** Software Drivers ***
 //
 // WorkQueue (g_work_queue)
-//   - TIM2
 //   - GPIO: PA3 (USE_WORKQUEUE_TRACE)
 // ADXL345
 //   - I2C1
@@ -65,7 +64,7 @@
 // EKF
 //   - TIM4 (for update interval length)
 // ADAHRSCommand
-//   - TIMx (timer to be determined)
+//   - TIM2 (for broadcast interval)
 // ----------------------------------------------------------------------------
 
 int main(int, char**);
@@ -152,6 +151,12 @@ main(int /*argc*/, char* /*argv*/[])
         if (command.have_new_packet())
         {
             command.process_rx_packet();
+        }
+
+        // if broadcasting and ready..
+        if (command.broadcast_ready())
+        {
+            command.broadcast();
         }
         
         // is there new data from the accelerometer?

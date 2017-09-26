@@ -5,9 +5,12 @@
  *      Author: ggreen
  */
 
+#include <math.h>
+
 #include "adahrs_command.h"
 #include "adahrs_config_def.h"
 #include "work_queue.h"
+#include "isr_def.h"
 
 // Definitions of states for USART receiver state machine (for receiving packets)
 #define	USART_STATE_WAIT	        1
@@ -75,17 +78,33 @@ USARTPacket& USARTPacket::operator=(const USARTPacket& pkt)
     return *this;
 }
 
+uint16_t USARTPacket::compute_checksum() const
+{
+    uint16_t chksum = static_cast<uint16_t>(0x73 + 0x6E + 0x70 + PT + address);
+    
+    for (int index=0; index<data_length; ++index)
+    {
+        chksum = static_cast<uint16_t>(chksum + packet_data[index]);
+    }
+    
+    return chksum;
+}
+
 // ----------------------------------------------------------------------------
+// static variable to flag broadcast ready
+// ----------------------------------------------------------------------------
+static volatile int gSendStateData = 0;
 
 ADAHRSCommand::ADAHRSCommand()
     : _uart(nullptr), _config(nullptr), _states(nullptr), _ekf(nullptr),
-      _state(0), _data_counter(0), _new_packet_received(0), _rx_offset(0), _tx_offset(0)
+      _state(0), _data_counter(0), _new_packet_received(0),
+      _rx_offset(0), _tx_offset(0)
 {
     // does nothing else
 }
 
 void ADAHRSCommand::begin(USART* uart, ADAHRSConfig* config, ADAHRSSensorData* states,
-                          EKF* ekf)
+                          EKF* ekf, uint8_t priority, uint8_t subpriority)
 {
     _uart = uart;
     _config = config;
@@ -96,6 +115,39 @@ void ADAHRSCommand::begin(USART* uart, ADAHRSConfig* config, ADAHRSSensorData* s
     _rx_offset = 0;
     _tx_offset = 0;
     _new_packet_received = 0;
+    gSendStateData = 0;
+    
+    // Enable TIM2 clock
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+
+    // setup timer2 for broadcast loop
+    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+    TIM_TimeBaseStructure.TIM_Period = 0xFFFF;
+    TIM_TimeBaseStructure.TIM_Prescaler = 72 - 1;
+    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+
+    TIM_DeInit(TIM2);
+    TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
+
+    // timer is not started until broadcast interval is setup
+
+    configure_nvic(TIM2_IRQn, priority, subpriority);
+
+    // set serial baud rate
+    update_serial_baud();
+
+    // if broadcasting, start it
+    if (_config->get_register(UM6_COMMUNICATION) & UM6_BROADCAST_ENABLED)
+    {
+        enable_broadcast_mode(_config->get_register(UM6_COMMUNICATION) & UM6_SERIAL_RATE_MASK);
+    }
+}
+
+bool ADAHRSCommand::broadcast_ready() const
+{
+    return (_config->get_register(UM6_COMMUNICATION) & UM6_BROADCAST_ENABLED)
+        && gSendStateData;
 }
 
 /*
@@ -305,7 +357,7 @@ void ADAHRSCommand::process_next_character()
             _new_packet.checksum = static_cast<uint16_t>(_new_packet.checksum | _rx_buffer[_rx_offset]);
 					 
             // Both checksum bytes have been received.  Make sure that the checksum is valid.
-            uint16_t checksum = compute_checksum(&_new_packet);
+            uint16_t checksum = _new_packet.compute_checksum();
 					 
             // If checksum does not match, send a BAD_CHECKSUM packet
             if (checksum != _new_packet.checksum)
@@ -314,7 +366,7 @@ void ADAHRSCommand::process_next_character()
                 _new_packet.PT = PACKET_NO_DATA;
                 _new_packet.address = UM6_BAD_CHECKSUM;
                 _new_packet.data_length = 0;	// No data bytes
-                _new_packet.checksum = compute_checksum(&_new_packet);
+                _new_packet.checksum = _new_packet.compute_checksum();
 						  
                 add_tx_packet(_new_packet);
             }
@@ -446,7 +498,7 @@ void ADAHRSCommand::process_rx_packet()
         response_packet.PT = PACKET_NO_DATA;
         response_packet.address = UM6_UNKNOWN_ADDRESS;
         response_packet.data_length = 0;	// No data bytes
-        response_packet.checksum = compute_checksum(&response_packet);
+        response_packet.checksum = response_packet.compute_checksum();
 		  
         add_tx_packet(response_packet);
     }
@@ -460,7 +512,7 @@ void ADAHRSCommand::process_rx_packet()
         response_packet.PT = PACKET_NO_DATA;
         response_packet.address = UM6_INVALID_BATCH_SIZE;
         response_packet.data_length = 0;	// No data bytes
-        response_packet.checksum = compute_checksum(&response_packet);
+        response_packet.checksum = response_packet.compute_checksum();
 		  
         add_tx_packet(response_packet);
     }
@@ -588,18 +640,6 @@ void ADAHRSCommand::retransmit(void* data)
         cmd->_tx_offset = 0;
     }
 }
-uint16_t ADAHRSCommand::compute_checksum(USARTPacket* new_packet)
-{
-    uint16_t checksum = static_cast<uint16_t>(0x73 + 0x6E + 0x70
-                                              + new_packet->PT + new_packet->address);
-    
-    for (int index=0; index<new_packet->data_length; ++index)
-    {
-        checksum = static_cast<uint16_t>(checksum + new_packet->packet_data[index]);
-    }
-    
-    return checksum;
-}
 
 // Constructs a packet containing the specified data and sends it over the USART
 void ADAHRSCommand::send_global_data(uint8_t address, uint8_t address_type, uint8_t packet_is_batch,
@@ -675,7 +715,7 @@ void ADAHRSCommand::send_global_data(uint8_t address, uint8_t address_type, uint
     }
 	 
     // The response packet should now be filled with data.  Compute the Checksum and transmit the packet
-    response_packet.checksum = compute_checksum(&response_packet);
+    response_packet.checksum = response_packet.compute_checksum();
 
     add_tx_packet(response_packet);
 	 
@@ -723,7 +763,7 @@ void ADAHRSCommand::dispatch_packet(const USARTPacket& pkt)
         response_packet.packet_data[2] = (UM6_FIRMWARE_REVISION >> 8) & 0x0FF;
         response_packet.packet_data[3] = UM6_FIRMWARE_REVISION & 0x0FF;
 		  
-        response_packet.checksum = compute_checksum(&response_packet);
+        response_packet.checksum = response_packet.compute_checksum();
 		  
         add_tx_packet(response_packet);
         break;
@@ -762,7 +802,7 @@ void ADAHRSCommand::dispatch_packet(const USARTPacket& pkt)
         break;
 		  
     case UM6_GET_DATA:
-        send_data_packet();
+        send_data_packets();
         break;
 		  
     case UM6_SET_ACCEL_REF:				
@@ -861,7 +901,7 @@ void ADAHRSCommand::send_command_success_packet(uint8_t address)
     packet.PT = PACKET_NO_DATA;
     packet.address = address;
     packet.data_length = 0;
-    packet.checksum = compute_checksum(&packet);
+    packet.checksum = packet.compute_checksum();
     
     add_tx_packet(packet);	 
 }
@@ -873,22 +913,22 @@ void ADAHRSCommand::send_command_failed_packet(uint8_t address)
     packet.PT = PACKET_NO_DATA | PACKET_COMMAND_FAILED;
     packet.address = address;
     packet.data_length = 0;
-    packet.checksum = compute_checksum(&packet);
+    packet.checksum = packet.compute_checksum();
     
     add_tx_packet(packet);
 }
 
-// TODO:
-void ADAHRSCommand::update_broadcast_rate(uint8_t /*new_rate*/)
+// 
+void ADAHRSCommand::update_broadcast_rate(uint8_t new_rate)
 {
-#if 0
     // Calculate new period.  The desired broadcast frequency is given by
     // ft = (280/255)*new_rate + 20
     // which yields rates ranging from 20 Hz to ~ 300 Hz.
     // With a prescaler value of 100, a system clock of 72Mhz, and no clock
     // division, the timer period should be:
     // new_period = 720000/ft
-    uint16_t new_period = (uint16_t)(720000.0/(1.09804*(float)new_rate + 20.0));
+    int ft = new_rate * 280 / 255 + 20;
+    uint16_t new_period = static_cast<uint16_t>(roundf(720000.0f / static_cast<float>(ft)));
     
     // Update TIM2
     TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
@@ -897,17 +937,19 @@ void ADAHRSCommand::update_broadcast_rate(uint8_t /*new_rate*/)
     TIM_TimeBaseStructure.TIM_ClockDivision = 0;
     TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
     
+    TIM_DeInit(TIM2);
     TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
-#endif
 }
 
-// TODO:
+// 
 void ADAHRSCommand::enable_broadcast_mode(uint8_t new_rate)
 {
+    // disable timer2
+    TIM_Cmd(TIM2, DISABLE);
+    
     // Set broadcast rate
     update_broadcast_rate(new_rate);
 
-#if 0
     // Enable Timer 2
     TIM_Cmd(TIM2, ENABLE);
 
@@ -916,13 +958,12 @@ void ADAHRSCommand::enable_broadcast_mode(uint8_t new_rate)
 
     // TIM IT enable
     TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
-#endif
 }
 
 void ADAHRSCommand::disable_broadcast_mode()
 {
     // Disable Timer 2
-    TIM_Cmd( TIM2, DISABLE );
+    TIM_Cmd(TIM2, DISABLE);
 }
 
 void ADAHRSCommand::update_serial_baud()
@@ -1019,10 +1060,16 @@ void ADAHRSCommand::start_gyro_calibration()
 #endif
 }
 
-void ADAHRSCommand::send_data_packet()
+void ADAHRSCommand::broadcast()
 {
-    USARTPacket packet;
-	 
+    if (gSendStateData == 0)
+        return;
+    send_data_packets();
+    gSendStateData = 0;
+}
+
+void ADAHRSCommand::send_data_packets()
+{
     // Raw accelerometer data
     if (_config->get_register(UM6_COMMUNICATION) & UM6_ACCELS_RAW_ENABLED)
     {
@@ -1129,6 +1176,17 @@ void ADAHRSCommand::send_data_packet()
     {
         send_global_data(UM6_GPS_SAT_1_2, ADDRESS_TYPE_DATA, PACKET_IS_BATCH, 6);
         _states->raw_data.new_GPS_satellite_data = 0;
+    }
+}
+
+// interrupt handler for Timer2
+void TIM2_IRQHandler(void)
+{
+    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+    {
+        // send broadcast packet
+        gSendStateData = 1;
+        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
     }
 }
 
