@@ -880,7 +880,7 @@ void ADAHRSCommand::dispatch_packet(const USARTPacket& pkt)
 				
     default:
         // If this was a write command, send a "success" packet to
-        // signal that the write was succesfull A read packet does not
+        // signal that the write was successful A read packet does not
         // need this because the returned data packet will fill the
         // role.  Similarly, a command packet does not need it because
         // commands are handled above

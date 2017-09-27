@@ -76,6 +76,7 @@ private:
     void enable_clocks();
     void get_port_pins(GPIO_TypeDef** port, uint16_t& sda, uint16_t& scl);
     void setup_pins();
+    void errata_2_14_7();
     
     // define away copy constructor and assignment operator
     I2C(const I2C&);

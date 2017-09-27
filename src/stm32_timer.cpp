@@ -162,16 +162,12 @@ void TimerList::tick()
         while (head != nullptr && head->count == 0)
         {
             if (expired == nullptr)
-            {
                 expired = head;
-                expired->next = nullptr;
-            }
-            else
-                expired_tail->next = head;
             expired_tail = head;
             head->state = Timer::Done;
             head = head->next;
         }
+        expired_tail->next = nullptr;
     }
 
     end_critical_section();

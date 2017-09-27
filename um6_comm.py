@@ -21,8 +21,6 @@ PACKET_IS_BATCH = (1 << 6)
 PACKET_BATCH_LENGTH_MASK = 0xf
 PACKET_BATCH_LENGTH_OFFSET = 2
 
-g_rx_buffer = bytearray();
-g_rx_offset = 0
 g_rx_counter = 0
 g_state = USART_STATE_WAIT
 
@@ -38,37 +36,46 @@ class USARTPacket:
     def compute_checksum(self):
         pass
 
-    def print(self):
-        pass
+    def dump(self):
+        print("Packet Dump")
+        print("PT:%x" % self.PT)
+        print("address:%x" % self.address)
+        print("data_length:%d" % self.data_length)
+        for i in range(self.data_length):
+            print("\tbyte:%x" % self.packet_data[i])
+        print("chksum:", hex(self.checksum))
         
 g_packet = USARTPacket()
 
-def process_next_char(data):
-    global g_rx_buffer, g_rx_offset, g_rx_counter, g_packet
+def process_buffer(data):
+    for b in data:
+        print("byte:", hex(b), "ch:'%c'" % b)
+        process_next_char(b)
+        
+def process_next_char(ch):
+    global g_rx_counter, g_packet, g_state
 
-    g_rx_buffer.append(data);
-    g_rx_offset += 1
-
-    last_byte = g_rx_buffer[g_rx_offset]
-    
-    if g_state == USART_STATE_TYPE:
-        if g_rx_counter == 0 and last_byte == 's':
+    print("state:", g_state)
+    if g_state == USART_STATE_WAIT:
+        if g_rx_counter == 0 and ch == 0x73:
             g_rx_counter += 1
-        elif g_rx_counter == 1 and last_byte == 'n':
+        elif g_rx_counter == 1 and ch == 0x6e:
             g_rx_counter += 1
-        elif g_rx_counter == 2 and last_byte == 'p':
+        elif g_rx_counter == 2 and ch == 0x70:
             g_rx_counter = 0
-            g_state = USART_STATE_ADDRESS
+            g_state = USART_STATE_TYPE
         else:
             g_rx_counter = 0
             
     elif g_state == USART_STATE_TYPE:
-        g_packet.PT = last_byte
+        g_packet.PT = ch
         g_state = USART_STATE_ADDRESS
-
+        #print("PT:", hex(g_packet.PT))
+        
     elif g_state == USART_STATE_ADDRESS:
-        g_packet.address = last_byte
-
+        g_packet.address = ch
+        #print("address:", g_packet.address)
+        
         if g_packet.address < 12:
             g_packet.address_type = ADDRESS_TYPE_CONFIG
         elif g_packet.address >= 12 and g_packet.address < 100:
@@ -78,6 +85,7 @@ def process_next_char(data):
 
         if (g_packet.PT & PACKET_HAS_DATA) == 0:
             g_state = USART_STATE_CHECKSUM
+            #print("no data packet")
         else:
             g_state = USART_STATE_DATA
             
@@ -85,9 +93,11 @@ def process_next_char(data):
                 g_packet.data_length = 4 * ((g_packet.PT >> 2) & PACKET_BATCH_LENGTH_MASK)
             else:
                 g_packet.data_length = 4
-
+            g_rx_counter = 0
+            #print("length:", g_packet.data_length)
+            
     elif g_state == USART_STATE_DATA:
-        g_packet.packet_data[g_rx_counter] = last_byte
+        g_packet.packet_data.append(ch)
         g_rx_counter += 1
         
         if g_rx_counter == g_packet.data_length:
@@ -96,28 +106,28 @@ def process_next_char(data):
 
     elif g_state == USART_STATE_CHECKSUM:
         if g_rx_counter == 0:
-            g_packet.checksum = last_byte << 8
+            g_packet.checksum = ch << 8
             g_rx_counter += 1
+            #print("chksum1:", hex(g_packet.checksum))
         else:
-            g_packet.checksum ++ last_byte
+            g_packet.checksum += ch
+            #print("chksum2:", hex(g_packet.checksum))
 
-        g_packet.compute_checksum()
+            g_packet.compute_checksum()
 
-        g_packet.print()
+            g_packet.dump()
         
-        g_rx_counter = 0
-        g_state = USART_STATE_WAIT
+            g_rx_counter = 0
+            g_state = USART_STATE_WAIT
 
     else:
         print("Bad state, exiting")
         sys.exit(-1)
         
 def main(args):
-    sport = serial.Serial('/dev/ttyUSB0')
+    sport = serial.Serial('/dev/ttyUSB0', 115200)
     while 1:
-        data = sport.read()
-        if data.length == 1:
-            process_next_char(data)
+        process_buffer(sport.read(2))
         
-if __def__ == '__main__':
-    main(sys.args)
+if __name__ == '__main__':
+    main(sys.argv)

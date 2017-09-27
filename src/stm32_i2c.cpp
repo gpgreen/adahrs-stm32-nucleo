@@ -10,6 +10,7 @@
 #include "stm32_i2c.h"
 #include "stm32_dma.h"
 #include "work_queue.h"
+#include "stm32_delaytimer.h"
 
 // ----------------------------------------------------------------------------
 // flags used to control transfers
@@ -67,6 +68,7 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     
     // disable the I2C if enabled
     I2C_Cmd(_i2c, DISABLE);
+    delaytimer.sleep(1);
     
     // enable the I2C pins
     setup_pins();
@@ -96,6 +98,9 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
 
     // enable I2C
     I2C_Cmd(_i2c, ENABLE);
+
+    // run the errata sequence to ensure working after MCU power-on reset
+    errata_2_14_7();
 }
 
 // enable all clocks for needed peripherals
@@ -189,6 +194,7 @@ bool I2C::send_receive(I2CMasterTxHeader* hdr,
     if (hdr->clock_speed != _init.I2C_ClockSpeed)
     {
         I2C_Cmd(_i2c, DISABLE);
+        delaytimer.sleep(1);
         _init.I2C_ClockSpeed = hdr->clock_speed;
         I2C_Init(_i2c, &_init);
         I2C_Cmd(_i2c, ENABLE);
@@ -204,6 +210,87 @@ bool I2C::send_receive(I2CMasterTxHeader* hdr,
     tx_start();
 
     return true;
+}
+
+void I2C::errata_2_14_7()
+{
+    // errata 2.14.7 doesn't allow peripheral to enter a START condition, usually after
+    // a MCU power-on reset. This procedure resets the I2C analog filters to allow peripheral
+    // to work
+    // Step 1 disable
+    I2C_Cmd(_i2c, DISABLE);
+    delaytimer.sleep(1);
+
+    // configure the pins as Output Open Drain
+    // determine the I2C pins
+    uint16_t sda_pin = 0;
+    uint16_t scl_pin = 0;
+    GPIO_TypeDef* pinport = nullptr;
+
+    get_port_pins(&pinport, sda_pin, scl_pin);
+    
+    // if using alternate, do the remap
+    if (_alt_func)
+    {
+        GPIO_PinRemapConfig(GPIO_Remap_I2C1, DISABLE);
+    }
+    
+    // configure the pins
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    // Step 2 Configure I2C SCL, SDA as output open drain
+    GPIO_InitStructure.GPIO_Pin = scl_pin | sda_pin;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_OD;
+    GPIO_Init(pinport, &GPIO_InitStructure);
+
+    // high level on both pins
+    GPIO_WriteBit(pinport, scl_pin, Bit_SET);
+    GPIO_WriteBit(pinport, sda_pin, Bit_SET);
+
+    // Step 3 check for high level in IDR
+    while (GPIO_ReadInputDataBit(pinport, scl_pin) == 0);
+    while (GPIO_ReadInputDataBit(pinport, sda_pin) == 0);
+
+    // Step 4 low level on sda
+    GPIO_WriteBit(pinport, sda_pin, Bit_RESET);
+
+    // Step 5 check for low level in sda IDR
+    while (GPIO_ReadInputDataBit(pinport, sda_pin) == sda_pin);
+
+    // Step 6 low level on scl
+    GPIO_WriteBit(pinport, scl_pin, Bit_RESET);
+
+    // Step 7 check for low level in scl IDR
+    while (GPIO_ReadInputDataBit(pinport, scl_pin) == scl_pin);
+
+    // Step 8 scl high level
+    GPIO_WriteBit(pinport, scl_pin, Bit_SET);
+
+    // Step 9 check for scl high
+    while (GPIO_ReadInputDataBit(pinport, scl_pin) == 0);
+
+    // Step 10 sda high level
+    GPIO_WriteBit(pinport, sda_pin, Bit_SET);
+
+    // Step 11 check sda high level
+    while (GPIO_ReadInputDataBit(pinport, sda_pin) == 0);
+
+    // Step 12 configure SCL and SDA to peripheral
+    setup_pins();
+
+    // Step 13 enable software reset
+    I2C_SoftwareResetCmd(_i2c, ENABLE);
+
+    delaytimer.sleep(1);
+
+    // Step 14 clear software reset
+    I2C_SoftwareResetCmd(_i2c, DISABLE);
+
+    // Step 15 enable i2c
+    I2C_Cmd(_i2c, ENABLE);
+
+    delaytimer.sleep(1);
 }
 
 void I2C::init_segment(I2CMasterTxSegment* segment, I2CTransferType type, uint8_t* databuffer,

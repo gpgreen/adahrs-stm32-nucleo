@@ -6,6 +6,7 @@
  */
 
 #include "adahrs_init.h"
+#include "stm32_delaytimer.h"
 #include "stm32_dma.h"
 #include "stm32_usart.h"
 #include "stm32_spi.h"
@@ -27,6 +28,9 @@ void ADAHRSInit::begin(ADAHRSConfig* config, ADAHRSSensorData* state,
 
     // initialize the timer
     Timer::begin(TIMER_IRQ_PRIORITY, 0);
+
+    // initialize the delaytimer
+    delaytimer.begin();
     
     // initialize config from Flash
     config->begin();
