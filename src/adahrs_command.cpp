@@ -642,7 +642,8 @@ void ADAHRSCommand::retransmit(void* data)
 }
 
 // Constructs a packet containing the specified data and sends it over the USART
-void ADAHRSCommand::send_global_data(uint8_t address, uint8_t address_type, uint8_t packet_is_batch,
+void ADAHRSCommand::send_global_data(uint8_t address, uint8_t address_type,
+                                     uint8_t packet_is_batch,
                                      uint8_t batch_size)
 {
     USARTPacket response_packet;

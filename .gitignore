@@ -1,5 +1,6 @@
 # .gitignore top of project
 *~
+*.pyc
 .settings
 Debug
 Release

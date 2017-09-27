@@ -34,7 +34,7 @@
 // the PC side.
 #define	CONFIG_ARRAY_SIZE		64
 #define	DATA_ARRAY_SIZE			48
-#define	COMMAND_COUNT			11
+#define	COMMAND_COUNT			10
 
 // 
 const uint8_t CONFIG_REG_START_ADDRESS =	0;

@@ -17,8 +17,9 @@
 
 #define I2C_RECEIVE                     0x00000001
 #define I2C_GENERATE_STOP               0x00000002
-#define I2C_WAITING_FOR_ADDR            0x00000004
-#define I2C_HAVE_DMA                    0x00000008
+#define I2C_HAVE_DMA                    0x00000004
+#define I2C_WAITING_FOR_START           0x00000008
+#define I2C_WAITING_FOR_ADDR            0x00000010
 
 // ----------------------------------------------------------------------------
 
@@ -179,63 +180,31 @@ void I2C::setup_pins()
     GPIO_Init(pinport, &GPIO_InitStructure);
 }
 
-bool I2C::send_receive(I2CMasterTxHeader* hdr,
-                       void (*completed_fn)(void*), void* data)
-{
-    if (hdr->first == nullptr)
-        return false;
-
-    // set _tx_busy to true, or return false
-    if (!__sync_bool_compare_and_swap(&_tx_busy, 0, 1))
-        return false;
-
-    // if the clock speed doesn't match what came before,
-    // change it
-    if (hdr->clock_speed != _init.I2C_ClockSpeed)
-    {
-        I2C_Cmd(_i2c, DISABLE);
-        delaytimer.sleep(1);
-        _init.I2C_ClockSpeed = hdr->clock_speed;
-        I2C_Init(_i2c, &_init);
-        I2C_Cmd(_i2c, ENABLE);
-    }
-
-    // set data for transmission
-    _hdr = hdr;
-    _hdr->num_txn_completed = 0;
-    _send_completion_fn = completed_fn;
-    _send_completion_data = data;
-
-    // start it
-    tx_start();
-
-    return true;
-}
-
+// errata 2.14.7 describes how peripheral won't enter a START
+// condition, usually after a MCU power-on reset. This happens
+// randomly per the errata. This procedure resets the I2C analog
+// filters to allow peripheral to enter the START condition.
 void I2C::errata_2_14_7()
 {
-    // errata 2.14.7 doesn't allow peripheral to enter a START condition, usually after
-    // a MCU power-on reset. This procedure resets the I2C analog filters to allow peripheral
-    // to work
     // Step 1 disable
     I2C_Cmd(_i2c, DISABLE);
     delaytimer.sleep(1);
 
-    // configure the pins as Output Open Drain
-    // determine the I2C pins
+    // get the I2C pins from driver config info
     uint16_t sda_pin = 0;
     uint16_t scl_pin = 0;
     GPIO_TypeDef* pinport = nullptr;
 
     get_port_pins(&pinport, sda_pin, scl_pin);
     
-    // if using alternate, do the remap
+    // if using alternate, undo the remap
     if (_alt_func)
     {
         GPIO_PinRemapConfig(GPIO_Remap_I2C1, DISABLE);
     }
     
-    // configure the pins
+    // configure the pins as Output Open Drain
+
     GPIO_InitTypeDef GPIO_InitStructure;
 
     // Step 2 Configure I2C SCL, SDA as output open drain
@@ -291,6 +260,38 @@ void I2C::errata_2_14_7()
     I2C_Cmd(_i2c, ENABLE);
 
     delaytimer.sleep(1);
+}
+
+bool I2C::send_receive(I2CMasterTxHeader* hdr,
+                       void (*completed_fn)(void*), void* data)
+{
+    if (hdr->first == nullptr)
+        return false;
+
+    // set _tx_busy to true, or return false
+    if (!__sync_bool_compare_and_swap(&_tx_busy, 0, 1))
+        return false;
+
+    // if the clock speed doesn't match what came before,
+    // change it
+    if (hdr->clock_speed != _init.I2C_ClockSpeed)
+    {
+        I2C_Cmd(_i2c, DISABLE);
+        _init.I2C_ClockSpeed = hdr->clock_speed;
+        I2C_Init(_i2c, &_init);
+        I2C_Cmd(_i2c, ENABLE);
+    }
+
+    // set data for transmission
+    _hdr = hdr;
+    _hdr->num_txn_completed = 0;
+    _send_completion_fn = completed_fn;
+    _send_completion_data = data;
+
+    // start it
+    tx_start();
+
+    return true;
 }
 
 void I2C::init_segment(I2CMasterTxSegment* segment, I2CTransferType type, uint8_t* databuffer,
@@ -367,8 +368,10 @@ void I2C::tx_start()
     }
     
     // generate start condition and wait for response
+    seg->flags |= I2C_WAITING_FOR_START;
     I2C_GenerateSTART(_i2c, ENABLE);
     wait_for_event(I2C_EVENT_MASTER_MODE_SELECT);
+    seg->flags &= ~(I2C_WAITING_FOR_START);
 
     // set flags to wait for address
     seg->flags |= I2C_WAITING_FOR_ADDR;
