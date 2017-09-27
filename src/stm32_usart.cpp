@@ -133,11 +133,43 @@ void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
 
     // enable USART
     USART_Cmd(_uart, ENABLE);
+
+    // clear pending interrupts
+    USART_ClearFlag(_uart, USART_FLAG_RXNE);
+    
+    // enable receive interrupt
+    USART_ITConfig(_uart, USART_IT_RXNE, ENABLE);
 }
 
-void USART::change_baud_rate(int /*baud_rate*/)
+void USART::change_baud_rate(int baud_rate)
 {
-    // TODO
+    // busy wait until we get the device
+    while (!__sync_bool_compare_and_swap(&_tx_busy, 0, 1))
+        ;
+
+    // disable USART
+    USART_Cmd(_uart, DISABLE);
+
+    USART_InitTypeDef USART_InitStructure;
+
+    USART_InitStructure.USART_BaudRate = baud_rate;
+    USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+    USART_InitStructure.USART_StopBits = USART_StopBits_1;
+    USART_InitStructure.USART_Parity = USART_Parity_No;
+    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+
+    // configure USART
+    USART_DeInit(_uart);
+    USART_Init(_uart, &USART_InitStructure);
+
+    _tx_busy = 0;
+    
+    // enable USART
+    USART_Cmd(_uart, ENABLE);
+
+    // enable receive interrupt
+    USART_ITConfig(_uart, USART_IT_RXNE, ENABLE);
 }
 
 bool USART::transmit(const char* txdata, int len)
@@ -282,7 +314,7 @@ void USART::tx_dma_complete(void* ptr)
 void USART::priv_rx_complete(void)
 {
     if (_rx_buffer_start < RX_BUFFER_SIZE)
-        _rx_buffer[_rx_buffer_start++] = (uint8_t)USART_ReceiveData(_uart);
+        _rx_buffer[_rx_buffer_start++] = static_cast<uint8_t>(USART_ReceiveData(_uart));
     else
         while(1);
 }

@@ -97,7 +97,7 @@ static volatile int gSendStateData = 0;
 
 ADAHRSCommand::ADAHRSCommand()
     : _uart(nullptr), _config(nullptr), _states(nullptr), _ekf(nullptr),
-      _state(0), _data_counter(0), _new_packet_received(0),
+      _state(USART_STATE_WAIT), _data_counter(0), _new_packet_received(0),
       _rx_offset(0), _tx_offset(0)
 {
     // does nothing else
@@ -110,7 +110,7 @@ void ADAHRSCommand::begin(USART* uart, ADAHRSConfig* config, ADAHRSSensorData* s
     _config = config;
     _states = states;
     _ekf = ekf;
-    _state = 0;
+    _state = USART_STATE_WAIT;
     _data_counter = 0;
     _rx_offset = 0;
     _tx_offset = 0;

@@ -29,16 +29,16 @@
 // *** Hardware ***
 //
 // I2C1
-//   - DMA1 Channel6
-//   - DMA1 Channel7
+//   - DMA1 Channel6 (tx)
+//   - DMA1 Channel7 (rx)
 //   - GPIO: PB6, PB7
 // USART1
-//   - DMA1 Channel4
-//   - DMA1 Channel5
+//   - DMA1 Channel4 (tx)
+//   - DMA1 Channel5 (rx)
 //   - GPIO: PA9, PA10
 // SPI1
-//   - DMA1 Channel2
-//   - DMA1 Channel3
+//   - DMA1 Channel2 (rx)
+//   - DMA1 Channel3 (tx)
 //   - Remap Pins
 //   - GPIO: PA15, PB3, PB4, PB5
 // Onboard LED
