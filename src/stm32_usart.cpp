@@ -6,6 +6,7 @@
  */
 
 #include "stm32_usart.h"
+#include "stm32_delaytimer.h"
 #include "work_queue.h"
 
 // ----------------------------------------------------------------------------
@@ -92,6 +93,7 @@ void USART::begin(int baud_rate, uint8_t priority, uint8_t subpriority)
 
     // disable USART if enabled
     USART_Cmd(_uart, DISABLE);
+    delaytimer.sleep(1);
     
     // configure the pins
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -149,7 +151,8 @@ void USART::change_baud_rate(int baud_rate)
 
     // disable USART
     USART_Cmd(_uart, DISABLE);
-
+    delaytimer.sleep(1);
+    
     USART_InitTypeDef USART_InitStructure;
 
     USART_InitStructure.USART_BaudRate = baud_rate;
