@@ -11,6 +11,7 @@
 #include "cmsis_device.h"
 #include "adahrs_definitions.h"
 #include "stm32_dma.h"
+#include "stm32_timer.h"
 #include "isr_def.h"
 
 #pragma GCC diagnostic push
@@ -68,7 +69,8 @@ private:
 
     static void tx_start_irq(void* data);
     static void dma_complete(void* data);
-
+    static void timeout(void* data);
+    
     void wait_for_event(uint32_t event);
     void tx_start();
     void priv_rx_complete();
@@ -92,9 +94,11 @@ private:
     I2CMasterTxHeader* _hdr;
     uint8_t _irqno;
     bool _alt_func;
+    bool _restart_stuck;
     void (*_send_completion_fn)(void*);
     void* _send_completion_data;
-
+    Timer _timeout;
+    
     friend void I2C1_EV_IRQHandler(void);
     friend void I2C2_EV_IRQHandler(void);
 };

@@ -26,7 +26,7 @@
 I2C::I2C(int device_no)
     : _devno(device_no), _tx_busy(0),
       _tx_dma(nullptr), _rx_dma(nullptr), _hdr(nullptr),
-      _irqno(0), _alt_func(false),
+      _irqno(0), _alt_func(false), _restart_stuck(false),
       _send_completion_fn(nullptr), _send_completion_data(nullptr)
 {
     if (device_no == 1)
@@ -101,7 +101,7 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     I2C_Cmd(_i2c, ENABLE);
 
     // run the errata sequence to ensure working after MCU power-on reset
-    errata_2_14_7();
+    //errata_2_14_7();
 }
 
 // enable all clocks for needed peripherals
@@ -366,6 +366,9 @@ void I2C::tx_start()
         // on the last data read
         I2C_DMALastTransferCmd(_i2c, ENABLE);
     }
+
+    // setup the timeout timer
+    _timeout.start(10000, I2C::timeout, this, Timer::OneShot);
     
     // generate start condition and wait for response
     seg->flags |= I2C_WAITING_FOR_START;
@@ -410,6 +413,35 @@ void I2C::dma_complete(void* data)
     }
 }
 
+// called if the transfer times out
+void I2C::timeout(void* data)
+{
+    I2C* i2c = reinterpret_cast<I2C*>(data);
+    // if we are waiting for the peripheral to go into start
+    // this may be condition shown in errata, try to run
+    // the errata sequence (once)
+    if (i2c->_hdr->first->flags & I2C_WAITING_FOR_START)
+    {
+        if (i2c->_restart_stuck)
+        {
+            while (1);
+        }
+        else
+        {
+            i2c->_restart_stuck = true;
+        }
+        // run the errata sequence
+        i2c->errata_2_14_7();
+        // remove the flags, release the DMA, and retry
+        i2c->_hdr->first->flags &= ~(I2C_WAITING_FOR_START | I2C_HAVE_DMA);
+        if (i2c->_hdr->first->flags & I2C_RECEIVE)
+            i2c->_rx_dma->cancel();
+        else
+            i2c->_tx_dma->cancel();
+        i2c->tx_start();
+    }
+}
+
 // when receive transfer is complete, this is called
 void I2C::priv_rx_complete()
 {
@@ -417,6 +449,7 @@ void I2C::priv_rx_complete()
     {
         I2C_GenerateSTOP(_i2c, ENABLE);
     }
+    _timeout.cancel();
     ++_hdr->num_txn_completed;
     // advance the segment if there is more
     if (_hdr->first->next != nullptr)
@@ -439,6 +472,7 @@ void I2C::priv_tx_complete()
     {
         I2C_GenerateSTOP(_i2c, ENABLE);
     }
+    _timeout.cancel();
     ++_hdr->num_txn_completed;
     // advance the segment if there is more
     if (_hdr->first->next != nullptr)

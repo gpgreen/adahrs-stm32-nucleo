@@ -133,6 +133,7 @@ void TimerList::remove(Timer* t)
                     t->next->count += ccount;
                 break;
             }
+            prev = prev->next;
         }
     }
 
