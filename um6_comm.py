@@ -284,11 +284,10 @@ class USARTPacket (object):
         
     def compute_checksum(self):
         total = sum(self.to_bytearray()[:-2])
-
         # Fold 32-bits into 16-bits
         total = (total >> 16) + (total & 0xffff)
         total += total >> 16
-        return (~total + 0x10000 & 0xffff)
+        return (total + 0x10000 & 0xffff)
 
     def to_bytearray(self):
         l = len(self._packet_data)
@@ -312,12 +311,11 @@ class USARTPacket (object):
             
     def dump(self):
         print("Packet Dump\n-----------")
-        print("PT:0x%x" % self._pt, "data:", self.has_data(), "batch:", self.is_batch(),\
-              "dlen:", self.data_length())
-        print("address:" % self._address)
+        print("PT:", hex(self._pt), "dlen:", self.data_length(), "data:",
+                  self.has_data(), "batch:", self.is_batch())
+        print("address:", self._address, "chksum:", hex(self.checksum()))
         for b in self._packet_data:
-            print("\tbyte:0x%x" % b)
-        print("chksum:0x", hex(self.checksum()))
+            print("\tbyte:", hex(b))
         
 ##############################################################################
 # Parser - takes stream of data from serial port and turns into packets
@@ -332,11 +330,11 @@ class Parser (object):
         
     def process_buffer(self, data):
         for b in data:
-            print("byte:", hex(b), "ch:'%c'" % b)
+            #print("byte:", hex(b), "ch:'%c'" % b)
             self.process_next_char(b)
         
     def process_next_char(self, ch):
-        print("state:", self._state)
+        #print("state:", self._state)
         if self._state == USART_STATE_WAIT:
             if self._rx_counter == 0 and ch == 0x73:
                 self._rx_counter += 1
@@ -401,7 +399,7 @@ class Parser (object):
 class Printer (Thread):
 
     def __init__(self, rxqueue):
-        super()
+        super().__init__()
         self._rx_queue = rxqueue
 
     def run(self):
@@ -415,7 +413,7 @@ class Printer (Thread):
 class Receiver (Thread):
 
     def __init__(self, serialport):
-        super()
+        super().__init__()
         self._port = serialport
         self._rx_queue = Queue()
         self._parser = Parser(self._rx_queue)
@@ -449,13 +447,14 @@ def main(args):
     receiver = Receiver(serport)
     printer = Printer(receiver.get_rx_queue())
 
-    # start threads
-    receiver.start()
-    printer.start()
-
-    # join threads
-    printer.join()
-    receiver.join()
+    try:
+        # start threads
+        receiver.start()
+        printer.start()
+    except KeyboardInterrupt:
+        # join threads
+        printer.join()
+        receiver.join()
     
 if __name__ == '__main__':
     main(sys.argv)
