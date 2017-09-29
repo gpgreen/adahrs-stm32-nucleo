@@ -5,6 +5,7 @@
 
 import serial
 import sys
+import time
 from optparse import OptionParser
 from threading import Thread
 from queue import Queue
@@ -176,8 +177,9 @@ UM6_USE_EXT_MAG                         = 180
 # data sent to/from the ADAHRS via Serial port
 class USARTPacket (object):
 
-    def __init__(self, pt):
+    def __init__(self, pt, t):
         super()
+        self._t = t
         self._pt = pt
         self.set_address(0)
         self._packet_data = bytearray()
@@ -185,7 +187,7 @@ class USARTPacket (object):
 
     @staticmethod
     def make_packet(address, data_array):
-        pkt = USARTPacket(0)
+        pkt = USARTPacket(0, time.time())
         pkt.set_address(address)
         pkt.set_data_length(len(data_array))
         pkt._packet_data = data_array
@@ -304,13 +306,14 @@ class USARTPacket (object):
         return buf
 
     def dump_csv(self):
-        s = ""
+        s = "%f," % self._t
         for ch in self.to_bytearray():
-            s += "%x," % ch
+            s += "%02x," % ch
         print(s[:-1])
             
     def dump(self):
         print("Packet Dump\n-----------")
+        print("t:", self._t)
         print("PT:", hex(self._pt), "dlen:", self.data_length(), "data:",
                   self.has_data(), "batch:", self.is_batch())
         print("address:", self._address, "chksum:", hex(self.checksum()))
@@ -347,7 +350,7 @@ class Parser (object):
                 self._rx_counter = 0
             
         elif self._state == USART_STATE_TYPE:
-            self._packet = USARTPacket(ch)
+            self._packet = USARTPacket(ch, time.time())
             self._state = USART_STATE_ADDRESS
             #print("PT:", hex(self._packet.pt()))
         
