@@ -204,7 +204,7 @@ void ADAHRSCommand::process_next_character()
     {
         return;
     }
-    ++_rx_offset;
+    uint8_t ch = _rx_buffer[_rx_offset++];
     if (_rx_offset == COMMAND_BUFFER_SIZE)
     {
         _data_counter = 0;
@@ -221,7 +221,7 @@ void ADAHRSCommand::process_next_character()
     case USART_STATE_WAIT:
         if (_data_counter == 0)		// Waiting on 's' character
         {
-            if (_rx_buffer[_rx_offset] == 's')
+            if (ch == 's')
             {
                 ++_data_counter;
             }
@@ -232,7 +232,7 @@ void ADAHRSCommand::process_next_character()
         }
         else if (_data_counter == 1)		// Waiting on 'n' character
         {
-            if (_rx_buffer[_rx_offset] == 'n')
+            if (ch == 'n')
             {
                 ++_data_counter;
             }
@@ -243,7 +243,7 @@ void ADAHRSCommand::process_next_character()
         }
         else if (_data_counter == 2)		// Waiting on 'p' character
         {
-            if (_rx_buffer[_rx_offset] == 'p')
+            if (ch == 'p')
             {
                 // The full 'snp' sequence was received.  Reset
                 // _data_counter (it will be used again later) and
@@ -263,7 +263,7 @@ void ADAHRSCommand::process_next_character()
         // is about to arrive.  Now, the USART expects to see the
         // packet type.
     case USART_STATE_TYPE:
-        _new_packet.PT = _rx_buffer[_rx_offset];
+        _new_packet.PT = ch;
         _state = USART_STATE_ADDRESS;
         break;
 	
@@ -271,7 +271,7 @@ void ADAHRSCommand::process_next_character()
         // expects to receive a single byte indicating the address
         // that the packet applies to
     case USART_STATE_ADDRESS:
-        _new_packet.address = _rx_buffer[_rx_offset];
+        _new_packet.address = ch;
 				
         // For convenience, identify the type of packet this is and copy to the packet structure
         // (this will be used by the packet handler later)
@@ -326,7 +326,7 @@ void ADAHRSCommand::process_next_character()
         // USART in the DATA state.  In this state, the USART expects
         // to receive new_packet.length bytes of data.
     case USART_STATE_DATA:
-        _new_packet.packet_data[_data_counter++] =  _rx_buffer[_rx_offset];
+        _new_packet.packet_data[_data_counter++] =  ch;
 	
         // If the expected number of bytes has been received, transition to the CHECKSUM state.
         if (_data_counter == _new_packet.data_length)
@@ -347,14 +347,14 @@ void ADAHRSCommand::process_next_character()
         // Get the highest-order byte
         if (_data_counter == 0)
         {
-            _new_packet.checksum = static_cast<uint16_t>(_rx_buffer[_rx_offset] << 8);
+            _new_packet.checksum = static_cast<uint16_t>(ch << 8);
 					 
             ++_data_counter;
         }
         else // ( _data_counter == 1 )
         {
             // Get lower-order byte
-            _new_packet.checksum = static_cast<uint16_t>(_new_packet.checksum | _rx_buffer[_rx_offset]);
+            _new_packet.checksum = static_cast<uint16_t>(_new_packet.checksum | ch);
 					 
             // Both checksum bytes have been received.  Make sure that the checksum is valid.
             uint16_t checksum = _new_packet.compute_checksum();
@@ -532,25 +532,11 @@ void ADAHRSCommand::process_rx_packet()
             // Received packets will always contain data in multiples of 4 bytes
             for (int i=0; i<new_packet.data_length; i+=4)
             {
-                int address;
-					 
-                if (new_packet.address_type == ADDRESS_TYPE_CONFIG)
-                {
-                    address = new_packet.address + address_offset;
-                    _config->set_register(address, new_packet.packet_data[i+3],
-                                          new_packet.packet_data[i+2],
-                                          new_packet.packet_data[i+1],
-                                          new_packet.packet_data[i]);
-                }
-                else
-                {
-                    address = new_packet.address + address_offset + DATA_REG_START_ADDRESS;
-                    _config->set_register(address, new_packet.packet_data[i+3],
-                                          new_packet.packet_data[i+2],
-                                          new_packet.packet_data[i+1],
-                                          new_packet.packet_data[i]);
-                }				 
-					 
+                int address = new_packet.address + address_offset;
+                _config->set_register(address, new_packet.packet_data[i+3],
+                		new_packet.packet_data[i+2],
+						new_packet.packet_data[i+1],
+						new_packet.packet_data[i]);
                 address_offset++;
             }
         }
@@ -642,7 +628,8 @@ void ADAHRSCommand::retransmit(void* data)
 }
 
 // Constructs a packet containing the specified data and sends it over the USART
-void ADAHRSCommand::send_global_data(uint8_t address, uint8_t address_type,
+// TODO: remove address_type
+void ADAHRSCommand::send_global_data(uint8_t address, uint8_t /*address_type*/,
                                      uint8_t packet_is_batch,
                                      uint8_t batch_size)
 {
@@ -660,59 +647,28 @@ void ADAHRSCommand::send_global_data(uint8_t address, uint8_t address_type,
 		  
         for (int i=0; i<batch_size; ++i)
         {
-            // Check to determine whether this is a configuration register access or a data register access
-            if (address_type == ADDRESS_TYPE_CONFIG)
-            {
-                response_packet.packet_data[4*i]
-                    = static_cast<uint8_t>((_config->get_register(address + i) >> 24) & 0x0FF);
-                response_packet.packet_data[4*i+1]
-                    = static_cast<uint8_t>((_config->get_register(address + i) >> 16) & 0x0FF);
-                response_packet.packet_data[4*i+2]
-                    = static_cast<uint8_t>((_config->get_register(address + i) >> 8) & 0x0FF);
-                response_packet.packet_data[4*i+3]
-                    = static_cast<uint8_t>(_config->get_register(address + i) & 0x0FF);
-            }
-            else
-            {
-                response_packet.packet_data[4*i]
-                    = static_cast<uint8_t>((_config->get_register(address + i) >> 24) & 0x0FF);
-                response_packet.packet_data[4*i+1]
-                    = static_cast<uint8_t>((_config->get_register(address + i) >> 16) & 0x0FF);
-                response_packet.packet_data[4*i+2]
-                    = static_cast<uint8_t>((_config->get_register(address + i) >> 8) & 0x0FF);
-                response_packet.packet_data[4*i+3]
-                    = static_cast<uint8_t>(_config->get_register(address + i) & 0x0FF);
-            }
+            response_packet.packet_data[4*i]
+                = static_cast<uint8_t>((_config->get_register(address + i) >> 24) & 0x0FF);
+            response_packet.packet_data[4*i+1]
+                = static_cast<uint8_t>((_config->get_register(address + i) >> 16) & 0x0FF);
+            response_packet.packet_data[4*i+2]
+                = static_cast<uint8_t>((_config->get_register(address + i) >> 8) & 0x0FF);
+            response_packet.packet_data[4*i+3]
+                = static_cast<uint8_t>(_config->get_register(address + i) & 0x0FF);
         }
     }
     // If this is not a batch read, just transmit the data found in the specified address
     else
     {
         response_packet.data_length = 4;
-		  
-        // Check to determine whether this is a configuration register access or a data register access
-        if (address_type == ADDRESS_TYPE_CONFIG)
-        {
-            response_packet.packet_data[0]
-                = static_cast<uint8_t>((_config->get_register(address) >> 24) & 0x0FF);
-            response_packet.packet_data[1]
-                = static_cast<uint8_t>((_config->get_register(address) >> 16) & 0x0FF);
-            response_packet.packet_data[2]
-                = static_cast<uint8_t>((_config->get_register(address) >> 8) & 0x0FF);
-            response_packet.packet_data[3]
-                = static_cast<uint8_t>(_config->get_register(address) & 0x0FF);
-        }
-        else
-        {
-            response_packet.packet_data[0]
-                = static_cast<uint8_t>((_config->get_register(address) >> 24) & 0x0FF);
-            response_packet.packet_data[1]
-                = static_cast<uint8_t>((_config->get_register(address) >> 16) & 0x0FF);
-            response_packet.packet_data[2]
-                = static_cast<uint8_t>((_config->get_register(address) >> 8) & 0x0FF);
-            response_packet.packet_data[3]
-                = static_cast<uint8_t>(_config->get_register(address) & 0x0FF);
-        }
+        response_packet.packet_data[0]
+            = static_cast<uint8_t>((_config->get_register(address) >> 24) & 0x0FF);
+        response_packet.packet_data[1]
+            = static_cast<uint8_t>((_config->get_register(address) >> 16) & 0x0FF);
+        response_packet.packet_data[2]
+            = static_cast<uint8_t>((_config->get_register(address) >> 8) & 0x0FF);
+        response_packet.packet_data[3]
+            = static_cast<uint8_t>(_config->get_register(address) & 0x0FF);
     }
 	 
     // The response packet should now be filled with data.  Compute the Checksum and transmit the packet

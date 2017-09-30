@@ -32,6 +32,7 @@ LSM303::LSM303(I2C* bus)
     _i2c_header.clock_speed = 100000;
     _i2c_header.first = &_i2c_segments[0];
     _i2c_header.slave_address = LSM_SLAVE_ADDRESS7;
+    _i2c_header.timeout = 10000;
 }
 
 void LSM303::begin(uint8_t /*priority*/, uint8_t /*subpriority*/)

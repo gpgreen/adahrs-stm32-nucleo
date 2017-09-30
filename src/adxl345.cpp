@@ -59,6 +59,7 @@ ADXL345::ADXL345(I2C* bus)
     _i2c_header.clock_speed = 100000;
     _i2c_header.first = &_i2c_segments[0];
     _i2c_header.slave_address = ADXL_SLAVE_ADDRESS7;
+    _i2c_header.timeout = 10000;
     s_device_0 = this;
 }
 
@@ -112,13 +113,13 @@ void ADXL345::begin(DataRate rate, bool use_interrupt,
         bwrate = 0x7;
     // full resolution, 16g, interrupt ACTIVE_HIGH
     _data[0] = ADXL_DATA_FORMAT;
-    _data[1] = 0x0b;
-    // select 100 Hz output data rate
+    _data[1] = 0xb;
+    // select output data rate
     _data[2] = ADXL_BW_RATE;
-    _data[3] = 0x0a;
+    _data[3] = bwrate;
     // place in measurement mode, last
     _data[4] = ADXL_POWER_CTL;
-    _data[5] = bwrate;
+    _data[5] = 0x8;
     
     // setup i2c transfer
     _i2c_header.first = &_i2c_segments[0];
@@ -273,7 +274,6 @@ void EXTI0_IRQHandler(void)
         EXTI_ClearITPendingBit(EXTI_Line0);
         ADXL345::get_data_trigger(s_device_0);
     }
-	 
 }
 
 // ----------------------------------------------------------------------------

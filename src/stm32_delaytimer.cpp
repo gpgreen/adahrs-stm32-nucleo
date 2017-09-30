@@ -69,6 +69,15 @@ DelayTimer::sleep (timer_ticks_t ticks)
 	;
 }
 
+void
+DelayTimer::delay (int delay_instr)
+{
+    for (int counter=0; counter<delay_instr; ++counter)
+    {
+        asm volatile("mov r0, r0");
+    }
+}
+
 // interrupt function
 static void
 timer_tick (void)

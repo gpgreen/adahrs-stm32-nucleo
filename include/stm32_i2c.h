@@ -38,6 +38,7 @@ struct I2CMasterTxHeader
     struct I2CMasterTxSegment* first;
     uint8_t slave_address;
     uint8_t num_txn_completed;
+    uint16_t timeout;
 };
 
 // ----------------------------------------------------------------------------

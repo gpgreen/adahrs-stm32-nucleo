@@ -19,9 +19,15 @@ public:
 
     explicit DelayTimer(unsigned long timer_freq_hz);
 
+    // startup DelayTimer subsystem
     void begin();
+
+    // wait until number of timer ticks has passed
     void sleep(timer_ticks_t ticks);
 
+    // delays CPU for 'delay_instr' nop instructions
+    static void delay(int delay_instr);
+    
 private:
     // define away copy constructor and assignment operator
     DelayTimer(const DelayTimer&);

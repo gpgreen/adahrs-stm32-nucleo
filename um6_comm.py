@@ -6,9 +6,10 @@
 import serial
 import sys
 import time
-from optparse import OptionParser
+from argparse import ArgumentParser
 from threading import Thread
-from queue import Queue
+import queue
+import tkinter
 
 ##############################################################################
 
@@ -173,6 +174,63 @@ UM6_SET_HOME_POSITION                   = 179
 UM6_USE_EXT_MAG                         = 180
 
 ##############################################################################
+# flags for UM6_COMMUNICATION
+# Enable serial data transmission
+UM6_BROADCAST_ENABLED		            = (1 << 30)
+# Enable transmission of raw gyro data
+UM6_GYROS_RAW_ENABLED                   = (1 << 29)
+# Enable transmission of raw accelerometer data
+UM6_ACCELS_RAW_ENABLED                  = (1 << 28)
+# Enable transmission of raw magnetometer data
+UM6_MAG_RAW_ENABLED                     = (1 << 27)
+# Enable transmission of processed gyro data (biases removed, scale factor applied, rotation correction applied)
+UM6_GYROS_PROC_ENABLED                  = (1 << 26)
+# Enable transmission of processed accel data (biases removed, scale factor applied, rotation correction applied)
+UM6_ACCELS_PROC_ENABLED                 = (1 << 25)
+# Enable transmission of processed mag data (biases removed, scale factor applied, rotation correction applied)
+UM6_MAG_PROC_ENABLED                    = (1 << 24)
+# Enable transmission of quaternion data
+UM6_QUAT_ENABLED                        = (1 << 23)
+# Enable transmission of euler angle data
+UM6_EULER_ENABLED                       = (1 << 22)
+# Enable transmission of state covariance data
+UM6_COV_ENABLED                         = (1 << 21)
+# Enable transmission of gyro temperature readings     
+UM6_TEMPERATURE_ENABLED                 = (1 << 20)
+# Enable transmission of latitude and longitude data
+UM6_GPS_POSITION_ENABLED                = (1 << 19)
+# Enable transmission of computed North and East position (with respect to home position)
+UM6_GPS_REL_POSITION_ENABLED            = (1 << 18)
+# Enable transmission of computed GPS course and speed
+UM6_GPS_COURSE_SPEED_ENABLED            = (1 << 17)
+# Enable transmission of satellite summary data (count, HDOP, VDP, mode)
+UM6_GPS_SAT_SUMMARY_ENABLED             = (1 << 16)
+# Enable transmission of satellite data (ID and SNR of each satellite)
+UM6_GPS_SAT_DATA_ENABLED                = (1 << 15)
+
+# Mask specifying the number of bits used to set the GPSserial baud rate
+UM6_GPS_BAUD_RATE_MASK                  = (0x07)
+# Specifies the start location of the GPS baud rate bits
+UM6_GPS_BAUD_START_BIT                  = 11
+
+# Mask specifying the number of bits used to set the serial baud rate
+UM6_BAUD_RATE_MASK                      = (0x07)
+# Specifies the start location of the serial baud rate bits
+UM6_BAUD_START_BIT                      = 8
+
+# Mask specifying which bits in this register are used to indicate the broadcast frequency
+# rate is from 0 to 255, where 0 is 20 Hz and 255 is 300 Hz
+UM6_SERIAL_RATE_MASK                    = (0x000FF)
+
+def int_to_bytearray(val):
+    data = bytearray(4)
+    data[0] = (val >> 24) & 0xff
+    data[1] = (val >> 16) & 0xff
+    data[2] = (val >> 8) & 0xff
+    data[3] = val & 0xff
+    return data
+
+##############################################################################
 # Packet class
 # data sent to/from the ADAHRS via Serial port
 class USARTPacket (object):
@@ -186,11 +244,28 @@ class USARTPacket (object):
         self.set_checksum(0)
 
     @staticmethod
-    def make_packet(address, data_array):
+    def make_reg_write_packet(address, data_array):
         pkt = USARTPacket(0, time.time())
         pkt.set_address(address)
         pkt.set_data_length(len(data_array))
         pkt._packet_data = data_array
+        pkt.set_checksum(pkt.compute_checksum())
+        return pkt
+    
+    @staticmethod
+    def make_reg_read_packet(address, num_regs):
+        pkt = USARTPacket(0, time.time())
+        pkt.set_address(address)
+        pkt.set_data_length(num_regs * 4)
+        pkt.set_has_data(False)
+        pkt.set_checksum(pkt.compute_checksum())
+        return pkt
+    
+    @staticmethod
+    def make_cmd_packet(cmd_address):
+        pkt = USARTPacket(0, time.time())
+        pkt.set_address(cmd_address)
+        pkt.set_data_length(0)
         pkt.set_checksum(pkt.compute_checksum())
         return pkt
     
@@ -238,8 +313,6 @@ class USARTPacket (object):
             self._pt &= ~PACKET_IS_BATCH
             
     def data_length(self):
-        if not self.has_data():
-            return 0
         if self.is_batch():
             return 4 *((self._pt >> PACKET_BATCH_LENGTH_OFFSET) & PACKET_BATCH_LENGTH_MASK)
         else:
@@ -252,7 +325,7 @@ class USARTPacket (object):
             raise ValueError("data length must be >= 0")
         self._pt = 0
         if dl > 4:
-            self._pt = (dl << PACKET_BATCH_LENGTH_OFFSET)
+            self._pt = ((dl >> 2) << PACKET_BATCH_LENGTH_OFFSET)
             self.set_is_batch(True)
             self.set_has_data(True)
         elif dl == 4:
@@ -338,77 +411,104 @@ class Parser (object):
         
     def process_next_char(self, ch):
         #print("state:", self._state)
-        if self._state == USART_STATE_WAIT:
-            if self._rx_counter == 0 and ch == 0x73:
+        try:
+            if self._state == USART_STATE_WAIT:
+                if self._rx_counter == 0 and ch == 0x73:
+                    self._rx_counter += 1
+                elif self._rx_counter == 1 and ch == 0x6e:
+                    self._rx_counter += 1
+                elif self._rx_counter == 2 and ch == 0x70:
+                    self._rx_counter = 0
+                    self._state = USART_STATE_TYPE
+                else:
+                    self._rx_counter = 0
+
+            elif self._state == USART_STATE_TYPE:
+                self._packet = USARTPacket(ch, time.time())
+                self._state = USART_STATE_ADDRESS
+                #print("PT:", hex(self._packet.pt()))
+
+            elif self._state == USART_STATE_ADDRESS:
+                self._packet.set_address(ch)
+                #print("address:", self._packet.address())
+
+                if not self._packet.has_data():
+                    self._state = USART_STATE_CHECKSUM
+                    #print("no data packet")
+                else:
+                    self._state = USART_STATE_DATA
+                    self._rx_counter = 0
+                    #print("length:", self._packet.data_length())
+
+            elif self._state == USART_STATE_DATA:
+                self._packet.set_data(self._rx_counter, ch)
                 self._rx_counter += 1
-            elif self._rx_counter == 1 and ch == 0x6e:
-                self._rx_counter += 1
-            elif self._rx_counter == 2 and ch == 0x70:
-                self._rx_counter = 0
-                self._state = USART_STATE_TYPE
+
+                if self._rx_counter == self._packet.data_length():
+                    self._rx_counter = 0
+                    self._state = USART_STATE_CHECKSUM
+
+            elif self._state == USART_STATE_CHECKSUM:
+                if self._rx_counter == 0:
+                    self._packet.set_checksum(ch << 8)
+                    self._rx_counter += 1
+                    #print("chksum1:", hex(self._packet.checksum()))
+                else:
+                    self._packet.set_checksum(self._packet.checksum() + ch)
+                    #print("chksum2:", hex(self._packet.checksum()))
+
+                    chksum = self._packet.compute_checksum()
+                    if chksum != self._packet.checksum():
+                        raise IndexError("packet has bad checksum")
+                    # add packet to queue, reset to starting state
+                    self._rx_queue.put(self._packet)
+                    self._packet = None
+                    self._rx_counter = 0
+                    self._state = USART_STATE_WAIT
+
             else:
-                self._rx_counter = 0
+                print("Bad state, exiting")
+                sys.exit(-1)
+        except IndexError:
+            print("Index error during packet parsing:")
+            print("ch:", hex(ch), "state:", self._state, "rx_counter:", self._rx_counter)
+            if self._state == USART_STATE_CHECKSUM:
+                print("computed checksum:", hex(self._packet.compute_checksum()))
+            self._packet.dump()
+            self._state = USART_STATE_WAIT
+            self._rx_counter = 0
             
-        elif self._state == USART_STATE_TYPE:
-            self._packet = USARTPacket(ch, time.time())
-            self._state = USART_STATE_ADDRESS
-            #print("PT:", hex(self._packet.pt()))
-        
-        elif self._state == USART_STATE_ADDRESS:
-            self._packet.set_address(ch)
-            #print("address:", self._packet.address())
-        
-            if not self._packet.has_data():
-                self._state = USART_STATE_CHECKSUM
-                #print("no data packet")
-            else:
-                self._state = USART_STATE_DATA
-                self._rx_counter = 0
-                #print("length:", self._packet.data_length())
-            
-        elif self._state == USART_STATE_DATA:
-            self._packet.set_data(self._rx_counter, ch)
-            self._rx_counter += 1
-        
-            if self._rx_counter == self._packet.data_length():
-                self._rx_counter = 0
-                self._state = USART_STATE_CHECKSUM
-
-        elif self._state == USART_STATE_CHECKSUM:
-            if self._rx_counter == 0:
-                self._packet.set_checksum(ch << 8)
-                self._rx_counter += 1
-                #print("chksum1:", hex(self._packet.checksum()))
-            else:
-                self._packet.set_checksum(self._packet.checksum() + ch)
-                #print("chksum2:", hex(self._packet.checksum()))
-
-                chksum = self._packet.compute_checksum()
-                if chksum != self._packet.checksum():
-                    raise RuntimeError("packet has bad checksum")
-
-                # add packet to queue, reset to starting state
-                self._rx_queue.put(self._packet)
-                self._packet = None
-                self._rx_counter = 0
-                self._state = USART_STATE_WAIT
-
-        else:
-            print("Bad state, exiting")
-            sys.exit(-1)
-
 ##############################################################################
 # Printer - pulls packet off the queue and prints them
 class Printer (Thread):
 
-    def __init__(self, rxqueue):
+    def __init__(self, rxqueue, format):
         super().__init__()
         self._rx_queue = rxqueue
+        self._stopme = False
+        self._format = format
 
+    def stop_me(self):
+        self._stopme = True
+        
     def run(self):
-        while 1:
-            pkt = self._rx_queue.get()
-            pkt.dump()
+        while not self._stopme:
+            try:
+                mode, pkt = self._rx_queue.get(timeout=0.5)
+                if self._format == 0:
+                    if mode == 0:
+                        print("RX")
+                    else:
+                        print("TX")
+                    pkt.dump()
+                else:
+                    if mode == 0:
+                        print("RX,", end='')
+                    else:
+                        print("TX,", end='')
+                    pkt.dump_csv()
+            except queue.Empty:
+                pass
         
 ##############################################################################
 # Receiver - receives data from the serial port and dispatches it
@@ -418,46 +518,168 @@ class Receiver (Thread):
     def __init__(self, serialport):
         super().__init__()
         self._port = serialport
-        self._rx_queue = Queue()
+        self._rx_queue = queue.Queue()
         self._parser = Parser(self._rx_queue)
+        self._stopme = False
 
     def get_rx_queue(self):
         return self._rx_queue
     
+    def stop_me(self):
+        self._stopme = True
+        
     def run(self):
-        while 1:
-            self._parser.process_buffer(self._port.read(1))
-            
+        while not self._stopme:
+            chars = self._port.read(1)
+            if len(chars):
+                self._parser.process_buffer(chars)
+
+##############################################################################
+# Command - sends commands/register settings to UM6
+class Command (Thread):
+
+    def __init__(self, serialport, rxqueue):
+        super().__init__()
+        self._port = serialport
+        self._rx_queue = rxqueue
+        self._stopme = False
+        self._print_queue = queue.Queue()
+        self._pkt_count = 0
+        self._wait_for_reply_pkt = []
+        
+    def stop_me(self):
+        self._stopme = True
+
+    def get_print_queue(self):
+        return self._print_queue
+    
+    def run(self):
+        while not self._stopme:
+            try:
+                pkt = self._rx_queue.get(timeout=0.5)
+                self._pkt_count += 1
+                print("pkts received:", self._pkt_count)
+                if len(self._wait_for_reply_pkt):
+                    self.check_response(pkt)
+                    print("waiting for %d responses" % len(self._wait_for_reply_pkt))
+                if self._print_queue:
+                    self._print_queue.put((0, pkt))
+            except queue.Empty:
+                pass
+
+    def check_response(self, pkt):
+        if not pkt.has_data() and not pkt.is_batch():
+            for i, wp in enumerate(self._wait_for_reply_pkt):
+                if wp.address() == pkt.address():
+                    print("reply received for:", pkt.address())
+                    break
+            if i != len(self._wait_for_reply_pkt):
+                del self._wait_for_reply_pkt[i]
+                
+    def get_registers(self, addr, numregs):
+        self.send_packet(USARTPacket.make_reg_read_packet(addr, numregs))
+
+    def send_command(self, cmd):
+        pkt = USARTPacket.make_cmd_packet(cmd)
+        self.send_packet(pkt)
+        self._wait_for_reply_pkt.append(pkt)
+                             
+    def broadcast(self, on):
+        if on:
+            comm = UM6_BROADCAST_ENABLED | UM6_GYROS_PROC_ENABLED | UM6_ACCELS_PROC_ENABLED | UM6_QUAT_ENABLED | UM6_TEMPERATURE_ENABLED
+            comm |= (5 << UM6_BAUD_START_BIT)
+        else:
+            comm = (5 << UM6_BAUD_START_BIT)
+        pkt = USARTPacket.make_reg_write_packet(UM6_COMMUNICATION, int_to_bytearray(comm))
+        self.send_packet(pkt)
+        self._wait_for_reply_pkt.append(pkt)
+        
+    def send_packet(self, pkt):
+        buf = pkt.to_bytearray()
+        num = self._port.write(buf)
+        if num != len(buf):
+            raise RuntimeError("didn't send all bytes")
+        print("pkt sent")
+        self._print_queue.put((1, pkt))
+        
+##############################################################################
+# GUI - 
+class GUI:
+
+    def __init__(self, master, command_thd):
+        self._root = master
+        self._cmd_thd = command_thd
+        master.title("um6_comm")
+        self._menu = tkinter.Menu(self._root)
+        self._root.config(menu = self._menu)
+        filemenu = tkinter.Menu(self._menu, tearoff=0)
+        filemenu.add_separator()
+        filemenu.add_command(label="Exit", command=self._root.quit)
+        self._menu.add_cascade(label="File", menu=filemenu)
+
+        # create the broadcast button
+        self._broadcast_btn = tkinter.Button(self._root, text="Broadcast",
+                                        command=self.broadcast, relief="sunken")
+        self._broadcast_btn.place(x=0, y=0)
+
+        # get the communication status
+        self._cmd_thd.get_registers(UM6_COMMUNICATION, 2)
+        # get the firmware version
+        self._cmd_thd.send_command(UM6_GET_FW_VERSION)
+        
+    def broadcast(self):
+        if self._broadcast_btn.config("relief")[-1] == "sunken":
+            self._broadcast_btn.config(relief="raised")
+            self._cmd_thd.broadcast(False)
+        else:
+            self._broadcast_btn.config(relief="sunken")
+            self._cmd_thd.broadcast(True)
+        
+    def donothing(self):
+        filewin = tkinter.Toplevel(self._root)
+        button = tkinter.Button(filewin, text="Do nothing button")
+        button.pack()
+        
 ##############################################################################
 
 def main(args):
 
     # command line options
-    usage = "usage: %prog [options]"
-    parser = OptionParser(usage=usage)
-    parser.set_defaults(port="/dev/ttyUSB0",
-                            bitrate="115200")
-    parser.add_option("-p", "--port", action="store", dest="port",
-                          help="Serial port file name")
-    parser.add_option("-b", "--bitrate", action="store", dest="bitrate",
-                          help="Serial port bitrate")
+    desc = "Serial Port communicator with UM6 ADAHRS"
+    parser = ArgumentParser(description=desc)
+    parser.add_argument("-p", "--port", action="store", dest="port",
+                            default="/dev/ttyUSB0", help="Serial port file name")
+    parser.add_argument("-b", "--bitrate", action="store", dest="bitrate", type=int,
+                            default=115200, help="Serial port bitrate")
     
-    (options, args) = parser.parse_args()
+    args = parser.parse_args()
 
-    print("Opening serial port '%s' with rate:%d" % (options.port, int(options.bitrate)))
+    print("Opening serial port '%s' with rate:%d" % (args.port, args.bitrate))
 
-    serport = serial.Serial(options.port, int(options.bitrate))
+    serport = serial.Serial(args.port, args.bitrate, timeout=0.5)
     receiver = Receiver(serport)
-    printer = Printer(receiver.get_rx_queue())
-
+    command = Command(serport, receiver.get_rx_queue())
+    printer = Printer(command.get_print_queue(), 1)
+    
+    top = tkinter.Tk()
+    top.geometry("640x480")
+    gui = GUI(top, command)
+    
     try:
         # start threads
-        receiver.start()
         printer.start()
+        command.start()
+        receiver.start()
+        top.mainloop()
     except KeyboardInterrupt:
-        # join threads
-        printer.join()
-        receiver.join()
+        pass
+    receiver.stop_me()
+    command.stop_me()
+    printer.stop_me()
+    # join threads
+    receiver.join()
+    printer.join()
+    command.join()
     
 if __name__ == '__main__':
     main(sys.argv)

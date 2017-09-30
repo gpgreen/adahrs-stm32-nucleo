@@ -69,7 +69,7 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
     
     // disable the I2C if enabled
     I2C_Cmd(_i2c, DISABLE);
-    delaytimer.sleep(1);
+    delaytimer.delay(100);
     
     // enable the I2C pins
     setup_pins();
@@ -99,9 +99,6 @@ void I2C::begin(bool use_alternate, uint8_t priority, uint8_t subpriority)
 
     // enable I2C
     I2C_Cmd(_i2c, ENABLE);
-
-    // run the errata sequence to ensure working after MCU power-on reset
-    //errata_2_14_7();
 }
 
 // enable all clocks for needed peripherals
@@ -188,7 +185,7 @@ void I2C::errata_2_14_7()
 {
     // Step 1 disable
     I2C_Cmd(_i2c, DISABLE);
-    delaytimer.sleep(1);
+    delaytimer.delay(100);
 
     // get the I2C pins from driver config info
     uint16_t sda_pin = 0;
@@ -251,7 +248,7 @@ void I2C::errata_2_14_7()
     // Step 13 enable software reset
     I2C_SoftwareResetCmd(_i2c, ENABLE);
 
-    delaytimer.sleep(1);
+    delaytimer.delay(1000);
 
     // Step 14 clear software reset
     I2C_SoftwareResetCmd(_i2c, DISABLE);
@@ -259,7 +256,7 @@ void I2C::errata_2_14_7()
     // Step 15 enable i2c
     I2C_Cmd(_i2c, ENABLE);
 
-    delaytimer.sleep(1);
+    delaytimer.delay(100);
 }
 
 bool I2C::send_receive(I2CMasterTxHeader* hdr,
@@ -368,7 +365,7 @@ void I2C::tx_start()
     }
 
     // setup the timeout timer
-    _timeout.start(10000, I2C::timeout, this, Timer::OneShot);
+    _timeout.start(_hdr->timeout, I2C::timeout, this, Timer::OneShot);
     
     // generate start condition and wait for response
     seg->flags |= I2C_WAITING_FOR_START;
@@ -562,15 +559,6 @@ void I2C2_EV_IRQHandler(void)
 
 #endif
 
-// delay a bit using mov instruction
-static void i2c_dly()
-{
-    for (int counter=0; counter<720; ++counter)
-    {
-        asm volatile("mov r0, r0");
-    }
-}
-
 // put a start condition on the i2c bus
 static void i2c_start(GPIO_TypeDef* port, uint16_t sda, uint16_t scl)
 {
@@ -579,15 +567,15 @@ static void i2c_start(GPIO_TypeDef* port, uint16_t sda, uint16_t scl)
     GPIO_WriteBit(port, sda, Bit_SET);
     // SCL hi-z
     GPIO_WriteBit(port, scl, Bit_SET);
-    i2c_dly();
+    delaytimer.delay(320);
     
     // SDA low
     GPIO_WriteBit(port, sda, Bit_RESET);
-    i2c_dly();
+    delaytimer.delay(320);
 
     // SCL lo
     GPIO_WriteBit(port, scl, Bit_RESET);
-    i2c_dly();
+    delaytimer.delay(320);
 }
 
 // put a stop condition on the i2c bus
@@ -597,15 +585,15 @@ static void i2c_stop(GPIO_TypeDef* port, uint16_t sda, uint16_t scl)
 
     // SCL lo
     GPIO_WriteBit(port, scl, Bit_RESET);
-    i2c_dly();
+    delaytimer.delay(320);
 
     // SDA low
     GPIO_WriteBit(port, sda, Bit_RESET);
-    i2c_dly();
+    delaytimer.delay(320);
     
     // SCL hi-z
     GPIO_WriteBit(port, scl, Bit_SET);
-    i2c_dly();
+    delaytimer.delay(320);
 
     // SDA hi
     GPIO_WriteBit(port, sda, Bit_SET);
@@ -631,7 +619,7 @@ bool I2C::bus_recovery()
     
     // Disable I2C controller to free the I/O pins
     I2C_Cmd(_i2c, DISABLE);
-    i2c_dly();
+    delaytimer.delay(320);
 
     // set the pins for manual control
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -652,24 +640,24 @@ bool I2C::bus_recovery()
 
     // SCL hi-z
     GPIO_WriteBit(pinport, scl_pin, Bit_SET);
-    i2c_dly();
+    delaytimer.delay(320);
     
     // loop to make at least 9 clocks
     for (uint32_t loop = 0; loop < 9; loop++)
     {
         // let SCL go high by pullup
         GPIO_WriteBit(pinport, scl_pin, Bit_SET);
-        i2c_dly();
+        delaytimer.delay(320);
         // pull SCL back low
         GPIO_WriteBit(pinport, scl_pin, Bit_RESET);
-        i2c_dly();
+        delaytimer.delay(320);
     }
 
     // run a start stop sequence. this performs a state machine reset
     // in most slave i2c devices
     i2c_start(pinport, sda_pin, scl_pin);
     i2c_stop(pinport, sda_pin, scl_pin);
-    i2c_dly();
+    delaytimer.delay(320);
 
     // reset the pins back to i2c control
     setup_pins();
