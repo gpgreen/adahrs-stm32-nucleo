@@ -9,37 +9,51 @@ import time
 from argparse import ArgumentParser
 from threading import Thread
 import queue
+import struct
 import tkinter
+import crcmod
+import crcmod.predefined
 
 ##############################################################################
 
 # definitions of states for USART state machine
-USART_STATE_WAIT = 1
-USART_STATE_TYPE = 2
-USART_STATE_ADDRESS = 3
-USART_STATE_DATA = 4
-USART_STATE_CHECKSUM = 5
+USART_STATE_WAIT                        = 1
+USART_STATE_TYPE                        = 2
+USART_STATE_ADDRESS                     = 3
+USART_STATE_DATA                        = 4
+USART_STATE_CHECKSUM                    = 5
 
 # flags for type of packet address
-ADDRESS_TYPE_CONFIG = 0
-ADDRESS_TYPE_DATA = 1
-ADDRESS_TYPE_COMMAND = 2
+ADDRESS_TYPE_CONFIG                     = 0
+ADDRESS_TYPE_DATA                       = 1
+ADDRESS_TYPE_COMMAND                    = 2
 
 # flags for interpreting packet type byte
-PACKET_HAS_DATA = (1 << 7)
-PACKET_IS_BATCH = (1 << 6)
-PACKET_BATCH_LENGTH_MASK = 0xf
-PACKET_BATCH_LENGTH_OFFSET = 2
+PACKET_HAS_DATA                         = (1 << 7)
+PACKET_IS_BATCH                         = (1 << 6)
+PACKET_BATCH_LENGTH_MASK                = 0xf
+PACKET_BATCH_LENGTH_OFFSET              = 2
 
 # definitions of address start indexes
-CONFIG_REG_START_ADDRESS = 0
-DATA_REG_START_ADDRESS = 85
-COMMAND_START_ADDRESS = 170
+CONFIG_REG_START_ADDRESS                = 0
+DATA_REG_START_ADDRESS                  = 85
+COMMAND_START_ADDRESS                   = 170
 
 # length of addresses
-CONFIG_ARRAY_SIZE = 64
-DATA_ARRAY_SIZE = 48
-COMMAND_COUNT = 11
+CONFIG_ARRAY_SIZE                       = 64
+DATA_ARRAY_SIZE                         = 48
+COMMAND_COUNT                           = 11
+
+##############################################################################
+# addresses of errors
+
+# Sent if the UM6 receives a packet with a bad checksum
+UM6_BAD_CHECKSUM		                = 253
+# Sent if the UM6 receives a packet with an unknown address
+UM6_UNKNOWN_ADDRESS                     = 254
+# Sent if a requested batch read or write operation would go beyond the bounds
+# of the config or data array
+UM6_INVALID_BATCH_SIZE                  = 255
 
 ##############################################################################
 # addresses of config registers
@@ -208,7 +222,7 @@ UM6_GPS_SAT_SUMMARY_ENABLED             = (1 << 16)
 # Enable transmission of satellite data (ID and SNR of each satellite)
 UM6_GPS_SAT_DATA_ENABLED                = (1 << 15)
 
-# Mask specifying the number of bits used to set the GPSserial baud rate
+# Mask specifying the number of bits used to set the GPS serial baud rate
 UM6_GPS_BAUD_RATE_MASK                  = (0x07)
 # Specifies the start location of the GPS baud rate bits
 UM6_GPS_BAUD_START_BIT                  = 11
@@ -222,19 +236,35 @@ UM6_BAUD_START_BIT                      = 8
 # rate is from 0 to 255, where 0 is 20 Hz and 255 is 300 Hz
 UM6_SERIAL_RATE_MASK                    = (0x000FF)
 
+##############################################################################
+# flags for MISC Configuration register
+# Enable magnetometer-based updates in the EKF
+UM6_MAG_UPDATE_ENABLED		            = (1 << 31)
+# Enable accelerometer-based updates in the EKF
+UM6_ACCEL_UPDATE_ENABLED                = (1 << 30)
+# Enable automatic gyro calibration on startup
+UM6_GYRO_STARTUP_CAL                    = (1 << 29)
+# Enable quaternion-based state estimation
+UM6_QUAT_ESTIMATE_ENABLED               = (1 << 28)
+# Enable external magnetic sensor updates in the EKF, internal sensor will be disabled if this is set
+UM6_EXT_MAG_UPDATE_ENABLED              = (1 << 27)
+
+##############################################################################
+# data conversion functions
+
 def int_to_bytearray(val):
-    data = bytearray(4)
-    data[0] = (val >> 24) & 0xff
-    data[1] = (val >> 16) & 0xff
-    data[2] = (val >> 8) & 0xff
-    data[3] = val & 0xff
-    return data
+    return struct.pack(">L", val)
+
+def float_to_bytearray(val):
+    return struct.pack(">f", val)
 
 ##############################################################################
 # Packet class
 # data sent to/from the ADAHRS via Serial port
 class USARTPacket (object):
 
+    crc16 = crcmod.predefined.mkCrcFun('crc-aug-ccitt')
+    
     def __init__(self, pt, t):
         super()
         self._t = t
@@ -358,11 +388,7 @@ class USARTPacket (object):
         self._checksum = cksum
         
     def compute_checksum(self):
-        total = sum(self.to_bytearray()[:-2])
-        # Fold 32-bits into 16-bits
-        total = (total >> 16) + (total & 0xffff)
-        total += total >> 16
-        return (total + 0x10000 & 0xffff)
+        return USARTPacket.crc16(self.to_bytearray()[:-2])
 
     def to_bytearray(self):
         l = len(self._packet_data)
@@ -429,9 +455,14 @@ class Parser (object):
                 #print("PT:", hex(self._packet.pt()))
 
             elif self._state == USART_STATE_ADDRESS:
-                self._packet.set_address(ch)
-                #print("address:", self._packet.address())
-
+                try:
+                    self._packet.set_address(ch)
+                    #print("address:", self._packet.address())
+                except IndexError:
+                    if ch >= UM6_BAD_CHECKSUM:
+                        self._packet._address = ch
+                    else:
+                        raise
                 if not self._packet.has_data():
                     self._state = USART_STATE_CHECKSUM
                     #print("no data packet")
@@ -623,7 +654,7 @@ class GUI:
         self._broadcast_btn.place(x=0, y=0)
 
         # get the communication status
-        self._cmd_thd.get_registers(UM6_COMMUNICATION, 2)
+#        self._cmd_thd.get_registers(UM6_COMMUNICATION, 2)
         # get the firmware version
         self._cmd_thd.send_command(UM6_GET_FW_VERSION)
         

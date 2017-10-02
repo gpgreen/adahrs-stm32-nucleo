@@ -78,16 +78,80 @@ USARTPacket& USARTPacket::operator=(const USARTPacket& pkt)
     return *this;
 }
 
+// http://srecord.sourceforge.net/crc16-ccitt.html
+
+#define poly 0x1021
+
+static uint16_t crc_ccitt_update(uint16_t crc, uint8_t data)
+{
+    // align test bit with leftmost bit of the message byte
+    uint8_t v = 0x80;
+
+    for (int i=0; i<8; ++i)
+    {
+        uint8_t xor_flag = 0;
+        
+        if (crc & 0x8000)
+        {
+            xor_flag = 1;
+        }
+        crc = static_cast<uint16_t>(crc << 1);
+
+        if (data & v)
+        {
+            /*
+              append next bit of message to end of CRC if it is not zero
+              the zero bit placed there by the shift above need not be
+              changed if the next bit of the message is zero
+            */
+            crc = static_cast<uint16_t>(crc + 1);
+        }
+
+        if (xor_flag)
+        {
+            crc ^= poly;
+        }
+
+        // align test bit with next bit of the message byte
+        v = static_cast<uint8_t>(v >> 1);
+    }
+    return crc;
+}
+
+static uint16_t crc_ccitt_augment_message(uint16_t crc)
+{
+    for (int i=0; i<16; i++)
+    {
+        uint8_t xor_flag = 0;
+        if (crc & 0x8000)
+        {
+            xor_flag = 1;
+        }
+        crc = static_cast<uint16_t>(crc << 1);
+
+        if (xor_flag)
+        {
+            crc ^= poly;
+        }
+    }
+    return crc;
+}
+
 uint16_t USARTPacket::compute_checksum() const
 {
-    uint16_t chksum = static_cast<uint16_t>(0x73 + 0x6E + 0x70 + PT + address);
+    uint16_t chksum = 0xffff;
+    chksum = crc_ccitt_update(chksum, 0x73);
+    chksum = crc_ccitt_update(chksum, 0x6e);
+    chksum = crc_ccitt_update(chksum, 0x70);
+    chksum = crc_ccitt_update(chksum, PT);
+    chksum = crc_ccitt_update(chksum, address);
     
     for (int index=0; index<data_length; ++index)
     {
-        chksum = static_cast<uint16_t>(chksum + packet_data[index]);
+        chksum = crc_ccitt_update(chksum, packet_data[index]);
     }
     
-    return chksum;
+    return crc_ccitt_augment_message(chksum);
 }
 
 // ----------------------------------------------------------------------------
@@ -298,6 +362,7 @@ void ADAHRSCommand::process_next_character()
         if ((_new_packet.PT & PACKET_HAS_DATA) == 0)
         {
             _state = USART_STATE_CHECKSUM;
+            _new_packet.data_length = 0;
         }
         // If this is a write operation, go to the USART_STATE_DATA state to read in the relevant data
         else
@@ -308,8 +373,7 @@ void ADAHRSCommand::process_next_character()
             // packet based on the packet type.  A write operation
             // consists of 4 bytes unless it is a batch operation, in
             // which case the number of bytes equals 4*batch_size,
-            // where the batch size is also given in the packet type
-            // byte.
+            // where the batch size is in the packet type byte.
             if (_new_packet.PT & PACKET_IS_BATCH)
             {
                 _new_packet.data_length = static_cast<uint8_t>(
