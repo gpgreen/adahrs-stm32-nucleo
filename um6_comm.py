@@ -259,6 +259,20 @@ def float_to_bytearray(val):
     return struct.pack(">f", val)
 
 ##############################################################################
+# Exceptions
+class BadChecksum (RuntimeError):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+class UnknownAddress (ValueError):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+class InvalidBatchSize (OverflowError):
+    def __init__(self, msg):
+        super().__init__(msg)
+
+##############################################################################
 # Packet class
 # data sent to/from the ADAHRS via Serial port
 class USARTPacket (object):
@@ -561,9 +575,12 @@ class Receiver (Thread):
         
     def run(self):
         while not self._stopme:
-            chars = self._port.read(1)
-            if len(chars):
-                self._parser.process_buffer(chars)
+            try:
+                chars = self._port.read(1)
+                if len(chars):
+                    self._parser.process_buffer(chars)
+            except serial.serialutil.SerialException:
+                return
 
 ##############################################################################
 # Command - sends commands/register settings to UM6
@@ -576,13 +593,16 @@ class Command (Thread):
         self._stopme = False
         self._print_queue = queue.Queue()
         self._pkt_count = 0
-        self._wait_for_reply_pkt = []
+        self._wait_for_reply_pkt = -1
         
     def stop_me(self):
         self._stopme = True
 
     def get_print_queue(self):
         return self._print_queue
+
+    def waiting_for_reply(self):
+        return self._wait_for_reply_pkt != -1
     
     def run(self):
         while not self._stopme:
@@ -590,22 +610,25 @@ class Command (Thread):
                 pkt = self._rx_queue.get(timeout=0.5)
                 self._pkt_count += 1
                 print("pkts received:", self._pkt_count)
-                if len(self._wait_for_reply_pkt):
+                if self._wait_for_reply_pkt != -1:
                     self.check_response(pkt)
-                    print("waiting for %d responses" % len(self._wait_for_reply_pkt))
                 if self._print_queue:
                     self._print_queue.put((0, pkt))
             except queue.Empty:
                 pass
 
     def check_response(self, pkt):
-        if not pkt.has_data() and not pkt.is_batch():
-            for i, wp in enumerate(self._wait_for_reply_pkt):
-                if wp.address() == pkt.address():
-                    print("reply received for:", pkt.address())
-                    break
-            if i != len(self._wait_for_reply_pkt):
-                del self._wait_for_reply_pkt[i]
+        if pkt.address() == self._wait_for_reply_pkt:
+            print("reply received for:", pkt.address())
+            self._wait_for_reply_pkt = -1
+        elif pkt.address() == UM6_BAD_CHECKSUM:
+            raise BadChecksum("reply to '%d' is bad checksum" % self._wait_for_reply_pkt)
+        elif pkt.address() == UM6_UNKNOWN_ADDRESS:
+            raise UnknownAddress("reply to '%d' is unknown address" % self._wait_for_reply_pkt)
+        elif pkt.address() == UM6_INVALID_BATCH_SIZE:
+            raise InvalidBatchSize("reply to '%d' is invalid batch size" % self._wait_for_reply_pkt)
+        else:
+            print("waiting for reply:", self._wait_for_reply_pkt)
                 
     def get_registers(self, addr, numregs):
         self.send_packet(USARTPacket.make_reg_read_packet(addr, numregs))
@@ -613,7 +636,6 @@ class Command (Thread):
     def send_command(self, cmd):
         pkt = USARTPacket.make_cmd_packet(cmd)
         self.send_packet(pkt)
-        self._wait_for_reply_pkt.append(pkt)
                              
     def broadcast(self, on):
         if on:
@@ -623,7 +645,6 @@ class Command (Thread):
             comm = (5 << UM6_BAUD_START_BIT)
         pkt = USARTPacket.make_reg_write_packet(UM6_COMMUNICATION, int_to_bytearray(comm))
         self.send_packet(pkt)
-        self._wait_for_reply_pkt.append(pkt)
         
     def send_packet(self, pkt):
         buf = pkt.to_bytearray()
@@ -631,6 +652,7 @@ class Command (Thread):
         if num != len(buf):
             raise RuntimeError("didn't send all bytes")
         print("pkt sent")
+        self._wait_for_reply_pkt = pkt.address()
         self._print_queue.put((1, pkt))
         
 ##############################################################################
@@ -653,10 +675,11 @@ class GUI:
                                         command=self.broadcast, relief="sunken")
         self._broadcast_btn.place(x=0, y=0)
 
+        self._state = 0
+        
         # get the communication status
-#        self._cmd_thd.get_registers(UM6_COMMUNICATION, 2)
-        # get the firmware version
-        self._cmd_thd.send_command(UM6_GET_FW_VERSION)
+        self._cmd_thd.get_registers(UM6_COMMUNICATION, 2)
+        self._root.after(100, self.get_reply)
         
     def broadcast(self):
         if self._broadcast_btn.config("relief")[-1] == "sunken":
@@ -665,7 +688,20 @@ class GUI:
         else:
             self._broadcast_btn.config(relief="sunken")
             self._cmd_thd.broadcast(True)
-        
+
+    def get_reply(self):
+        if self._state == 0:
+            if not self._cmd_thd.waiting_for_reply():
+                # get the firmware version
+                self._cmd_thd.send_command(UM6_GET_FW_VERSION)
+                self._state = 1
+        elif self._state == 1:
+            if not self._cmd_thd.waiting_for_reply():
+                self._state = 2
+        elif self._state == 2:
+            return
+        self._root.after(100, self.get_reply)
+            
     def donothing(self):
         filewin = tkinter.Toplevel(self._root)
         button = tkinter.Button(filewin, text="Do nothing button")
