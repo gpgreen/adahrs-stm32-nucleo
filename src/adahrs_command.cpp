@@ -273,6 +273,7 @@ void ADAHRSCommand::process_next_character()
     {
         _data_counter = 0;
         _rx_offset = 0;
+        _state = USART_STATE_WAIT;
         return;
     }
     
@@ -309,16 +310,13 @@ void ADAHRSCommand::process_next_character()
         {
             if (ch == 'p')
             {
-                // The full 'snp' sequence was received.  Reset
-                // _data_counter (it will be used again later) and
+                // The full 'snp' sequence was received.
                 // transition to the next state.
-                _data_counter = 0;
                 _state = USART_STATE_TYPE;
             }
-            else
-            {
-                _data_counter = 0;
-            }
+            // expected a p, didn't get it, reset state
+            _data_counter = 0;
+            _rx_offset = 0;
         }
         break;
 		  

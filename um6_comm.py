@@ -583,6 +583,53 @@ class Receiver (Thread):
                 return
 
 ##############################################################################
+# Register - contains data at an address received from UM6
+class Register (object):
+
+    def __init__(self):
+        self._data = bytearray(4)
+        self._uninit = True
+
+    def is_initialized(self):
+        return not self._uninit
+    
+    def set_bytes(self, barray):
+        if len(barray) != 4:
+            raise ValueError("Register contains exactly 4 bytes only")
+        self._data = barray
+        self._uninit = False
+        
+    def get_float(self):
+        return struct.unpack(">f", self._data)[0]
+
+    def get_int(self):
+        return struct.unpack(">L", self._data)[0]
+
+    def __str__(self):
+        return "init:%s %02x %02x %02x %02x" % (self.is_initialized(),
+                                                    self._data[0], self._data[1],
+                                                    self._data[2], self._data[3])
+        
+##############################################################################
+# Registers - contains data received from UM6
+class Registers (object):
+
+    def __init__(self):
+        self._regs = {}
+        for i in range(CONFIG_ARRAY_SIZE):
+            self._regs[i] = Register()
+        for i in range(DATA_ARRAY_SIZE):
+            self._regs[i+DATA_REG_START_ADDRESS] = Register()
+
+    def get_register(self, addr):
+        if addr >= 0 and addr < CONFIG_ARRAY_SIZE:
+            return self._regs[addr]
+        if addr >= DATA_REG_START_ADDRESS and addr < DATA_REG_START_ADDRESS + DATA_ARRAY_SIZE:
+            return self._regs[addr]
+        else:
+            raise IndexError("bad register address: %d(%x)" % (addr, addr))
+        
+##############################################################################
 # Command - sends commands/register settings to UM6
 class Command (Thread):
 
@@ -594,6 +641,7 @@ class Command (Thread):
         self._print_queue = queue.Queue()
         self._pkt_count = 0
         self._wait_for_reply_pkt = -1
+        self._regs = Registers()
         
     def stop_me(self):
         self._stopme = True
@@ -603,6 +651,9 @@ class Command (Thread):
 
     def waiting_for_reply(self):
         return self._wait_for_reply_pkt != -1
+
+    def registers(self):
+        return self._regs
     
     def run(self):
         while not self._stopme:
@@ -610,8 +661,25 @@ class Command (Thread):
                 pkt = self._rx_queue.get(timeout=0.5)
                 self._pkt_count += 1
                 print("pkts received:", self._pkt_count)
+                # if we are waiting for a reply, check for it
                 if self._wait_for_reply_pkt != -1:
                     self.check_response(pkt)
+                # extract the data, if possible
+                if pkt.has_data():
+                    addr = pkt.address()
+                    if addr >= COMMAND_START_ADDRESS:
+                        pass
+                    else:
+                        num_regs = pkt.data_length() >> 2
+                        for i in range(num_regs):
+                            reg = self._regs.get_register(addr)
+                            barray = bytearray(4)
+                            for j in range(4):
+                                barray[j] = pkt.data(i*4 + j)
+                            reg.set_bytes(barray)
+                            #print("reg:", addr, "data:", str(reg))
+                            addr += 1
+                # print the packet contents
                 if self._print_queue:
                     self._print_queue.put((0, pkt))
             except queue.Empty:
@@ -671,8 +739,11 @@ class GUI:
         self._menu.add_cascade(label="File", menu=filemenu)
 
         # create the broadcast button
-        self._broadcast_btn = tkinter.Button(self._root, text="Broadcast",
-                                        command=self.broadcast, relief="sunken")
+        self._broadcast_btn = tkinter.Button(self._root,
+                                                 text="Broadcast",
+                                                 command=self.broadcast,
+                                                 relief="sunken",
+                                                 state=tkinter.DISABLED)
         self._broadcast_btn.place(x=0, y=0)
 
         self._state = 0
@@ -689,9 +760,18 @@ class GUI:
             self._broadcast_btn.config(relief="sunken")
             self._cmd_thd.broadcast(True)
 
+    def read_communication_register(self):
+        comm_reg = self._cmd_thd.registers().get_register(UM6_COMMUNICATION).get_int()
+        if (comm_reg & UM6_BROADCAST_ENABLED) == UM6_BROADCAST_ENABLED:
+            self._broadcast_btn.config(relief="sunken", state=tkinter.NORMAL)
+        else:
+            self._broadcast_btn.config(relief="raised", state=tkinter.NORMAL)
+        
     def get_reply(self):
         if self._state == 0:
             if not self._cmd_thd.waiting_for_reply():
+                # we have the first set of registers
+                self.read_communication_register()
                 # get the firmware version
                 self._cmd_thd.send_command(UM6_GET_FW_VERSION)
                 self._state = 1
