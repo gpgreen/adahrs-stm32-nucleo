@@ -359,8 +359,10 @@ class USARTPacket (object):
     def data_length(self):
         if self.is_batch():
             return 4 *((self._pt >> PACKET_BATCH_LENGTH_OFFSET) & PACKET_BATCH_LENGTH_MASK)
-        else:
+        elif self.has_data():
             return 4
+        else:
+            return 0
 
     def set_data_length(self, dl):
         if dl % 4:
@@ -642,6 +644,7 @@ class Command (Thread):
         self._pkt_count = 0
         self._wait_for_reply_pkt = -1
         self._regs = Registers()
+        self._firmware_version = ""
         
     def stop_me(self):
         self._stopme = True
@@ -668,7 +671,12 @@ class Command (Thread):
                 if pkt.has_data():
                     addr = pkt.address()
                     if addr >= COMMAND_START_ADDRESS:
-                        pass
+                        if addr == UM6_GET_FW_VERSION:
+                            barray = bytearray(4)
+                            for j in range(4):
+                                barray[j] = pkt.data(j)
+                            self._firmware_version = barray.decode('utf-8')
+                            print("UM6 Firmware Version:", self._firmware_version)
                     else:
                         num_regs = pkt.data_length() >> 2
                         for i in range(num_regs):
@@ -749,7 +757,7 @@ class GUI:
         self._state = 0
         
         # get the communication status
-        self._cmd_thd.get_registers(UM6_COMMUNICATION, 2)
+        self._cmd_thd.get_registers(UM6_COMMUNICATION, 16)
         self._root.after(100, self.get_reply)
         
     def broadcast(self):

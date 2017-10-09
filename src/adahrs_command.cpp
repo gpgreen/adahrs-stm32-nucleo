@@ -443,7 +443,7 @@ void ADAHRSCommand::process_next_character()
             // Put the USART back into the WAIT state and reset 
             // the _data_counter variable so that it can be used to receive the next packet.
             _data_counter = 0;
-						  
+			_rx_offset = 0;
             _state = USART_STATE_WAIT;					  
         }
 				
