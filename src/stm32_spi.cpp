@@ -10,6 +10,7 @@
 #include "stm32_spi.h"
 #include "stm32_dma.h"
 #include "work_queue.h"
+#include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------
 // Flags for use in transaction process
@@ -65,8 +66,7 @@ SPI::SPI(int device_no)
 #endif  // STM32F10X_HD_VL
     else
     {
-        while (1)
-            ;
+        UsageFault_Handler();
     }
 }
 
@@ -142,7 +142,7 @@ void SPI::begin(bool use_alternate,
         }
         else
         {
-            while(1);
+            UsageFault_Handler();
         }
         // enable clocks
         RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);

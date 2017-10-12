@@ -6,6 +6,7 @@
  */
 
 #include "work_queue.h"
+#include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------
 
@@ -103,7 +104,7 @@ void WorkQueue::add_work_irq(void (*work_fn)(void *), void* data)
     }
     if (_queue_end == _queue_start)
     {
-        while (1);
+        UsageFault_Handler();
     }
     else
     {

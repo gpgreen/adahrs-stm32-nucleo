@@ -8,6 +8,7 @@
 #include "stm32_usart.h"
 #include "stm32_delaytimer.h"
 #include "work_queue.h"
+#include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------
 
@@ -50,8 +51,7 @@ USART::USART(int device_no) :
     }
     else
     {
-        while (1)
-            ;
+        UsageFault_Handler();
     }
 }
 
@@ -319,7 +319,7 @@ void USART::priv_rx_complete(void)
     if (_rx_buffer_start < RX_BUFFER_SIZE)
         _rx_buffer[_rx_buffer_start++] = static_cast<uint8_t>(USART_ReceiveData(_uart));
     else
-        while(1);
+        UsageFault_Handler();
 }
 
 // ----------------------------------------------------------------------------

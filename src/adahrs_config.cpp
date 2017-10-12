@@ -6,6 +6,7 @@
  */
 
 #include "adahrs_config.h"
+#include "cortexm/ExceptionHandlers.h"
 
 extern "C"
 {
@@ -51,7 +52,10 @@ uint32_t ADAHRSConfig::get_register(int addr)
     else if (addr < COMMAND_START_ADDRESS)
         return _config_reg[addr];
     else
-        while(1);
+    {
+        UsageFault_Handler();
+        return 0; // will never be reached
+    }
 }
 
 void ADAHRSConfig::set_register(int addr, uint32_t data)
@@ -61,7 +65,7 @@ void ADAHRSConfig::set_register(int addr, uint32_t data)
     else if (addr < COMMAND_START_ADDRESS)
         _config_reg[addr] = data;
     else
-        while(1);
+        UsageFault_Handler();
 }
 
 void ADAHRSConfig::set_register(int addr, float data)
@@ -72,7 +76,7 @@ void ADAHRSConfig::set_register(int addr, float data)
     else if (addr < COMMAND_START_ADDRESS)
         _config_reg[addr] = *reinterpret_cast<uint32_t*>(&f);
     else
-        while(1);
+        UsageFault_Handler();
 }
 
 void ADAHRSConfig::set_register(int addr, uint8_t b1, uint8_t b2,
@@ -84,7 +88,10 @@ void ADAHRSConfig::set_register(int addr, uint8_t b1, uint8_t b2,
     else if (addr < COMMAND_START_ADDRESS)
         reg = &_config_reg[addr];
     else
-        while(1);
+    {
+        UsageFault_Handler();
+        return; // will never be reached
+    }
     *reg = b1 | (b2 << 8) | (b3 << 16) | (b4 << 24);
 }
 

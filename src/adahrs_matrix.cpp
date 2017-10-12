@@ -6,6 +6,7 @@
  */
 
 #include "adahrs_matrix.h"
+#include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------
 
@@ -50,7 +51,7 @@ float Matrix::get(uint8_t row, uint8_t col) const
 {
     if (row > _rows || col > _cols)
     {
-        while (1);
+        UsageFault_Handler();
     }
     return _data[row][col];
 }
@@ -59,7 +60,7 @@ void Matrix::set(uint8_t row, uint8_t col, float val)
 {
     if (row > _rows || col > _cols)
     {
-        while (1);
+        UsageFault_Handler();
     }
     _data[row][col] = val;
 }
@@ -86,7 +87,7 @@ Matrix& Matrix::operator +=(const Matrix& rhs)
 {
     if (_rows != rhs._rows || _cols != rhs._cols)
     {
-        while (1);
+        UsageFault_Handler();
     }
     
     for (int i=0; i<rhs._rows; ++i)
@@ -103,7 +104,7 @@ Matrix& Matrix::operator -=(const Matrix& rhs)
 {
     if (_rows != rhs._rows || _cols != rhs._cols)
     {
-        while (1);
+        UsageFault_Handler();
     }
 
     for (int i=0; i<rhs._rows; ++i)
@@ -120,7 +121,7 @@ Matrix& Matrix::operator *= (const Matrix& rhs)
 {
     if (_cols != rhs._rows)
     {
-        while (1);
+        UsageFault_Handler();
     }
     _cols = rhs._cols;
     
