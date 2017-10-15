@@ -12,6 +12,7 @@
 #include "adahrs_definitions.h"
 #include "stm32_dma.h"
 #include "isr_def.h"
+#include "ring_buffer.h"
 
 // ----------------------------------------------------------------------------
 
@@ -61,8 +62,8 @@ private:
     uint8_t _irqno;
     volatile int _tx_busy;
     // receive buffer members
-    volatile uint8_t _rx_buffer[RX_BUFFER_SIZE];
-    volatile int _rx_buffer_start;
+    uint8_t _rx_buffer[RX_BUFFER_SIZE];
+    RingBuffer<uint8_t> _rx_ring_buf;
 
     friend void USART1_IRQHandler(void);
     friend void USART2_IRQHandler(void);

@@ -13,7 +13,8 @@
 
 USART::USART(int device_no) :
     _devno(device_no), _tx_dma(nullptr), _rx_dma(nullptr), _tx_buf_p(nullptr),
-    _tx_buffer_start(0),  _irqno(0), _tx_busy(0), _rx_buffer_start(0)
+    _tx_buffer_start(0),  _irqno(0), _tx_busy(0),
+    _rx_ring_buf(_rx_buffer, RX_BUFFER_SIZE)
 {
     if (device_no == 1)
     {
@@ -263,7 +264,7 @@ void USART::tx_start()
 // received data?
 bool USART::has_received_data()
 {
-    return _rx_buffer_start != 0;
+    return _rx_ring_buf.size() != 0;
 }
 
 // get received data, returns count of data copied
@@ -276,25 +277,18 @@ unsigned int USART::get_received_data(uint8_t* buf, int buflen)
     // === START critical section
     __set_BASEPRI(USART_IRQ_MASKING);
 
-    int sz = buflen>_rx_buffer_start ? buflen : _rx_buffer_start;
-    for (int i = 0; i < sz; ++i)
+    int sz = _rx_ring_buf.size();
+    int i;
+    for (i=0; i<buflen && i<sz; ++i)
     {
-        buf[i] = _rx_buffer[i];
-    }
-    _rx_buffer_start -= sz;
-    if (sz < RX_BUFFER_SIZE)
-    {
-        volatile uint8_t* bufptr = &_rx_buffer[sz];
-        for (int i=RX_BUFFER_SIZE; i>sz; --i,++bufptr)
-        {
-            _rx_buffer[RX_BUFFER_SIZE - i] = *bufptr;
-        }
+        buf[i] = _rx_ring_buf.top();
+        _rx_ring_buf.pop();
     }
 
     __set_BASEPRI(0U);
     // === END critical section
 
-    return sz;
+    return i;
 }
 
 // called from within IRQ
@@ -316,8 +310,8 @@ void USART::tx_dma_complete(void* ptr)
 // called from within IRQ
 void USART::priv_rx_complete(void)
 {
-    if (_rx_buffer_start < RX_BUFFER_SIZE)
-        _rx_buffer[_rx_buffer_start++] = static_cast<uint8_t>(USART_ReceiveData(_uart));
+    if (_rx_ring_buf.size() < RX_BUFFER_SIZE)
+        _rx_ring_buf.push(static_cast<uint8_t>(USART_ReceiveData(_uart)));
     else
         while(1);
 }

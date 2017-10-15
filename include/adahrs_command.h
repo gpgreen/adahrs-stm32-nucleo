@@ -118,7 +118,9 @@ private:
     uint32_t _tx_offset;
     uint8_t _rx_buffer[COMMAND_BUFFER_SIZE];
     uint8_t _tx_buffer[COMMAND_BUFFER_SIZE];
-
+    USARTPacket _rx_pkt_buffer[RX_PKT_RING_BUFFER_SIZE];
+    USARTPacket _tx_pkt_buffer[TX_PKT_RING_BUFFER_SIZE];
+    
     RingBuffer<USARTPacket> _rx_packets;
     RingBuffer<USARTPacket> _tx_packets;
     

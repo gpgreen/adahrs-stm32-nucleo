@@ -47,7 +47,8 @@
 // Maximum number of data bytes that can be stored in a packet
 #define MAX_PACKET_DATA                  72
 #define COMMAND_BUFFER_SIZE              96 /* packet can be MAX_PACKET_DATA + 7 bytes long */
-#define RING_BUFFER_SIZE                 20
+#define TX_PKT_RING_BUFFER_SIZE          10
+#define RX_PKT_RING_BUFFER_SIZE          10
 
 // ----------------------------------------------------------------------------
 // size of USART tx/rx buffers

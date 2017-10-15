@@ -162,7 +162,9 @@ static volatile int gSendStateData = 0;
 ADAHRSCommand::ADAHRSCommand()
     : _uart(nullptr), _config(nullptr), _states(nullptr), _ekf(nullptr),
       _state(USART_STATE_WAIT), _data_counter(0), _new_packet_received(0),
-      _rx_offset(0), _tx_offset(0)
+      _rx_offset(0), _tx_offset(0),
+      _rx_packets(_rx_pkt_buffer, RX_PKT_RING_BUFFER_SIZE),
+      _tx_packets(_tx_pkt_buffer, TX_PKT_RING_BUFFER_SIZE)
 {
     // does nothing else
 }

@@ -9,7 +9,6 @@
 #define RING_BUFFER_H_
 
 #include "cmsis_device.h"
-#include "adahrs_definitions.h"
 
 // ----------------------------------------------------------------------------
 
@@ -17,7 +16,7 @@ template <typename T>
 class RingBuffer
 {
 public:
-    explicit RingBuffer(void);
+    explicit RingBuffer(T* buf, uint32_t bufsz);
 
     uint32_t size() const;
     bool empty() const;
@@ -32,14 +31,15 @@ private:
     RingBuffer(const RingBuffer&);
     RingBuffer& operator=(const RingBuffer&);
     
-    T _array[RING_BUFFER_SIZE];
+    T* _array;
+    uint32_t _bufsize;
     uint32_t _head;
     uint32_t _tail;
 };
 
 template <typename T>
-RingBuffer<T>::RingBuffer(void)
-    : _head(0), _tail(0)
+RingBuffer<T>::RingBuffer(T* buf, uint32_t bufsz)
+    : _array(buf), _bufsize(bufsz), _head(0), _tail(0)
 {
     // does nothing else
 }
@@ -49,7 +49,7 @@ uint32_t RingBuffer<T>::size() const
 {
     if (_head > _tail)
     {
-        return RING_BUFFER_SIZE - _head + _tail;
+        return _bufsize - _head + _tail;
     }
     else
     {
@@ -78,19 +78,19 @@ const T& RingBuffer<T>::top() const
 template <typename T>
 void RingBuffer<T>::pop()
 {
-    if (++_head == RING_BUFFER_SIZE)
+    if (++_head == _bufsize)
         _head = 0;
 }
 
 template <typename T>
 void RingBuffer<T>::push(T elem)
 {
-    if (size() == RING_BUFFER_SIZE)
+    if (size() == _bufsize)
     {
         while(1);
     }
     _array[_tail++] = elem;
-    if (_tail == RING_BUFFER_SIZE)
+    if (_tail == _bufsize)
         _tail = 0;
 }
 
