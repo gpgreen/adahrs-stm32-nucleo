@@ -11,6 +11,7 @@
 #include "stm32_dma.h"
 #include "work_queue.h"
 #include "stm32_delaytimer.h"
+#include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------
 // flags used to control transfers
@@ -53,8 +54,7 @@ I2C::I2C(int device_no)
     }
     else
     {
-        while (1)
-            ;
+        UsageFault_Handler();
     }
 }
 
@@ -147,7 +147,7 @@ void I2C::get_port_pins(GPIO_TypeDef** port, uint16_t& sda, uint16_t& scl)
         }
         else
         {
-            while(1);
+            UsageFault_Handler();
         }
     }
 }
@@ -421,7 +421,7 @@ void I2C::timeout(void* data)
     {
         if (i2c->_restart_stuck)
         {
-            while (1);
+            UsageFault_Handler();
         }
         else
         {

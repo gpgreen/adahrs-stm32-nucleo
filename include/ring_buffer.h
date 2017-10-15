@@ -9,6 +9,7 @@
 #define RING_BUFFER_H_
 
 #include "cmsis_device.h"
+#include "cortexm/ExceptionHandlers.h"
 
 // ----------------------------------------------------------------------------
 
@@ -87,7 +88,7 @@ void RingBuffer<T>::push(T elem)
 {
     if (size() == _bufsize)
     {
-        while(1);
+        UsageFault_Handler();
     }
     _array[_tail++] = elem;
     if (_tail == _bufsize)

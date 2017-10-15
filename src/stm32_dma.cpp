@@ -80,8 +80,9 @@ DMA::DMA(DMA_Channel_TypeDef* channel) :
 
 #endif
 
-    else {
-        while (1);
+    else
+    {
+        UsageFault_Handler();
     }
 }
 
