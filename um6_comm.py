@@ -291,7 +291,7 @@ class USARTPacket (object):
     def make_reg_write_packet(address, data_array):
         pkt = USARTPacket(0, time.time())
         pkt.set_address(address)
-        pkt.set_data_length(len(data_array))
+        pkt.set_num_registers(len(data_array) >> 2)
         pkt._packet_data = data_array
         pkt.set_checksum(pkt.compute_checksum())
         return pkt
@@ -300,7 +300,7 @@ class USARTPacket (object):
     def make_reg_read_packet(address, num_regs):
         pkt = USARTPacket(0, time.time())
         pkt.set_address(address)
-        pkt.set_data_length(num_regs * 4)
+        pkt.set_num_registers(num_regs)
         pkt.set_has_data(False)
         pkt.set_checksum(pkt.compute_checksum())
         return pkt
@@ -309,7 +309,7 @@ class USARTPacket (object):
     def make_cmd_packet(cmd_address):
         pkt = USARTPacket(0, time.time())
         pkt.set_address(cmd_address)
-        pkt.set_data_length(0)
+        pkt.set_num_registers(0)
         pkt.set_checksum(pkt.compute_checksum())
         return pkt
     
@@ -330,14 +330,6 @@ class USARTPacket (object):
         else:
             raise IndexError("bad address")
 
-    def address_type(self):
-        if self._address < DATA_REG_START_ADDRESS:
-            return ADDRESS_TYPE_CONFIG
-        elif self._address < COMMAND_START_ADDRESS:
-            return ADDRESS_TYPE_DATA
-        else:
-            return ADDRESS_TYPE_COMMAND
-        
     def has_data(self):
         return (self._pt & PACKET_HAS_DATA) != 0
 
@@ -364,17 +356,17 @@ class USARTPacket (object):
         else:
             return 0
 
-    def set_data_length(self, dl):
-        if dl % 4:
-            raise ValueError("data length must be divisible by 4")
+    def set_num_registers(self, dl):
         if dl < 0:
             raise ValueError("data length must be >= 0")
         self._pt = 0
-        if dl > 4:
-            self._pt = ((dl >> 2) << PACKET_BATCH_LENGTH_OFFSET)
+        if dl > 8:
+            raise ValueError("Maximum packet data length is 8")
+        elif dl > 1:
+            self._pt = (dl << PACKET_BATCH_LENGTH_OFFSET)
             self.set_is_batch(True)
             self.set_has_data(True)
-        elif dl == 4:
+        elif dl == 1:
             self.set_has_data(True)
         else:
             self.set_is_batch(False)
@@ -659,8 +651,10 @@ class Command (Thread):
         return self._regs
     
     def run(self):
+        # endless loop, extracting packets from rx queue
         while not self._stopme:
             try:
+                # get a packet with timeout, raises queue.Empty if timed out
                 pkt = self._rx_queue.get(timeout=0.5)
                 self._pkt_count += 1
                 print("pkts received:", self._pkt_count)
@@ -689,6 +683,7 @@ class Command (Thread):
                             addr += 1
                 # print the packet contents
                 if self._print_queue:
+                    # put the received packet on print queue
                     self._print_queue.put((0, pkt))
             except queue.Empty:
                 pass
@@ -728,7 +723,9 @@ class Command (Thread):
         if num != len(buf):
             raise RuntimeError("didn't send all bytes")
         print("pkt sent")
+        # record that we are waiting for a response
         self._wait_for_reply_pkt = pkt.address()
+        # put the sent packet on the print queue
         self._print_queue.put((1, pkt))
         
 ##############################################################################
@@ -756,8 +753,8 @@ class GUI:
 
         self._state = 0
         
-        # get the communication status
-        self._cmd_thd.get_registers(UM6_COMMUNICATION, 16)
+        # get the firmware version
+        self._cmd_thd.send_command(UM6_GET_FW_VERSION)
         self._root.after(100, self.get_reply)
         
     def broadcast(self):
@@ -770,6 +767,7 @@ class GUI:
 
     def read_communication_register(self):
         comm_reg = self._cmd_thd.registers().get_register(UM6_COMMUNICATION).get_int()
+        print("UM6_COMMUNICATION:0x%x" % comm_reg)
         if (comm_reg & UM6_BROADCAST_ENABLED) == UM6_BROADCAST_ENABLED:
             self._broadcast_btn.config(relief="sunken", state=tkinter.NORMAL)
         else:
@@ -778,15 +776,47 @@ class GUI:
     def get_reply(self):
         if self._state == 0:
             if not self._cmd_thd.waiting_for_reply():
-                # we have the first set of registers
-                self.read_communication_register()
-                # get the firmware version
-                self._cmd_thd.send_command(UM6_GET_FW_VERSION)
+                # get the first set of registers
+                self._cmd_thd.get_registers(UM6_COMMUNICATION, 8)
                 self._state = 1
         elif self._state == 1:
             if not self._cmd_thd.waiting_for_reply():
+                # we have the first set of registers
+                self.read_communication_register()
+                # regs 8-15
+                self._cmd_thd.get_registers(UM6_EKF_MAG_VARIANCE, 8)
                 self._state = 2
         elif self._state == 2:
+            if not self._cmd_thd.waiting_for_reply():
+                # regs 16-23
+                self._cmd_thd.get_registers(UM6_MAG_BIAS_Z, 8)
+                self._state = 3
+        elif self._state == 3:
+            if not self._cmd_thd.waiting_for_reply():
+                # regs 24-31
+                self._cmd_thd.get_registers(UM6_ACCEL_CAL_21, 8)
+                self._state = 4
+        elif self._state == 4:
+            if not self._cmd_thd.waiting_for_reply():
+                # regs 32-39
+                self._cmd_thd.get_registers(UM6_GYRO_CAL_20, 8)
+                self._state = 5
+        elif self._state == 5:
+            if not self._cmd_thd.waiting_for_reply():
+                # regs 40-47
+                self._cmd_thd.get_registers(UM6_MAG_CAL_12, 8)
+                self._state = 6
+        elif self._state == 6:
+            if not self._cmd_thd.waiting_for_reply():
+                # regs 48-55
+                self._cmd_thd.get_registers(UM6_GYROY_BIAS_0, 8)
+                self._state = 7
+        elif self._state == 7:
+            if not self._cmd_thd.waiting_for_reply():
+                # regs 56-63
+                self._cmd_thd.get_registers(UM6_GPS_HOME_LAT, 8)
+                self._state = 8
+        elif self._state == 8:
             return
         self._root.after(100, self.get_reply)
             
